@@ -1,0 +1,1 @@
+"""Synthetic full-stack backend."""

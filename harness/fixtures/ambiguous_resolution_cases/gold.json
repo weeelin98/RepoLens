@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "expected_nodes": [
+    {"id": "py:function:alpha.handle", "kind": "function", "source_path": "alpha.py", "span": {"start_line": 1, "end_line": 2}},
+    {"id": "py:function:beta.handle", "kind": "function", "source_path": "beta.py", "span": {"start_line": 1, "end_line": 2}},
+    {"id": "py:function:dispatch", "kind": "function", "source_path": "dispatch.py", "span": {"start_line": 1, "end_line": 3}},
+    {"id": "ts:file:client", "kind": "file", "source_path": "client.ts", "span": {"start_line": 1, "end_line": 2}}
+  ],
+  "expected_edges": [],
+  "expected_ambiguous_relationships": [
+    {"source_id": "py:function:dispatch", "target_id": "py:function:alpha.handle", "relation": "calls", "evidence_kind": "ambiguous_unresolved", "source_citation": {"source_path": "dispatch.py", "span": {"start_line": 2, "end_line": 3}}},
+    {"source_id": "py:function:dispatch", "target_id": "py:function:beta.handle", "relation": "calls", "evidence_kind": "ambiguous_unresolved", "source_citation": {"source_path": "dispatch.py", "span": {"start_line": 2, "end_line": 3}}}
+  ],
+  "expected_query_results": [{"query_id": "ambiguous-handler", "expected_node_ids": ["py:function:dispatch", "py:function:alpha.handle", "py:function:beta.handle"]}],
+  "expected_dependency_paths": [],
+  "expected_change_impacts": [{"case_id": "ambiguous-handler-change", "expected_affected_symbol_ids": ["py:function:alpha.handle", "py:function:dispatch"]}]
+}

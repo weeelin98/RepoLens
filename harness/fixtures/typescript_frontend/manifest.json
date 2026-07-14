@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "typescript_frontend",
+  "description": "A TSX component that uses a typed client and a literal fetch call.",
+  "languages": ["typescript", "tsx"],
+  "repository": "repo",
+  "gold": "gold.json",
+  "questions": "questions.jsonl",
+  "diff_cases": ["diffs/component_change.json"]
+}

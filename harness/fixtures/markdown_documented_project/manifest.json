@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "markdown_documented_project",
+  "description": "Markdown hierarchy, links, fenced code, and inline symbol references.",
+  "languages": ["markdown", "python"],
+  "repository": "repo",
+  "gold": "gold.json",
+  "questions": "questions.jsonl",
+  "diff_cases": ["diffs/docs_change.json"]
+}

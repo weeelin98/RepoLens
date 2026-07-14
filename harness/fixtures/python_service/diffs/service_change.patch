@@ -1,0 +1,8 @@
+diff --git a/catalog/service.py b/catalog/service.py
+--- a/catalog/service.py
++++ b/catalog/service.py
+@@ -4,3 +4,3 @@
+ def describe_item(sku: str) -> str:
+     item = get_item(sku)
+-    return item or "missing"
++    return item or "not found"

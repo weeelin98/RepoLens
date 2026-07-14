@@ -1,0 +1,10 @@
+diff --git a/backend/service.py b/backend/service.py
+--- a/backend/service.py
++++ b/backend/service.py
+@@ -5,5 +5,5 @@
+ def require_task(task_id: int) -> Task:
+     task = get_task(task_id)
+     if task is None:
+-        raise LookupError(task_id)
++        raise LookupError(f"task {task_id} was not found")
+     return task

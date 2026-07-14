@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "repolens"
+version = "0.1.0"
+description = "Local-first context compiler for AI coding agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "WeiLin" }]
+dependencies = [
+  "pydantic>=2.8,<3",
+  "typer>=0.12,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.11,<2",
+  "pytest>=8.3,<9",
+  "pytest-cov>=5,<7",
+  "ruff>=0.6,<1",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.11,<2",
+  "pytest>=8.3,<9",
+  "pytest-cov>=5,<7",
+  "ruff>=0.6,<1",
+]
+
+[project.scripts]
+repolens = "repolens.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/repolens"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers --strict-config -ra --cov=src/repolens --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["typer.testing"]
+ignore_missing_imports = true

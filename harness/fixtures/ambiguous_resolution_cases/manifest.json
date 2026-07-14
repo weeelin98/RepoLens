@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "ambiguous_resolution_cases",
+  "description": "Duplicate symbol names and dynamic calls that must stay unresolved.",
+  "languages": ["python", "typescript"],
+  "repository": "repo",
+  "gold": "gold.json",
+  "questions": "questions.jsonl",
+  "diff_cases": ["diffs/handler_change.json"]
+}

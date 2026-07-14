@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "id": "docs-rendering-change",
+  "git_range": "base..docs-change",
+  "patch_file": "docs_change.patch",
+  "changed_paths": ["docs/architecture.md"],
+  "expected_changed_symbol_ids": ["md:section:rendering"],
+  "expected_affected_symbol_ids": ["md:document:architecture", "md:section:rendering"]
+}

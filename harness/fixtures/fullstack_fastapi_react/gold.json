@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "expected_nodes": [
+    {"id": "ts:component:TaskPanel", "kind": "react_component", "source_path": "frontend/src/TaskPanel.tsx", "span": {"start_line": 4, "end_line": 8}},
+    {"id": "ts:function:fetchTask", "kind": "function", "source_path": "frontend/src/api.ts", "span": {"start_line": 3, "end_line": 6}},
+    {"id": "py:endpoint:GET:/api/tasks/{task_id}", "kind": "api_endpoint", "source_path": "backend/api.py", "span": {"start_line": 9, "end_line": 14}},
+    {"id": "py:function:require_task", "kind": "function", "source_path": "backend/service.py", "span": {"start_line": 5, "end_line": 9}},
+    {"id": "py:function:get_task", "kind": "function", "source_path": "backend/repository.py", "span": {"start_line": 6, "end_line": 7}},
+    {"id": "py:model:Task", "kind": "data_model", "source_path": "backend/models.py", "span": {"start_line": 4, "end_line": 7}},
+    {"id": "py:test:test_read_task", "kind": "test", "source_path": "backend/tests/test_api.py", "span": {"start_line": 4, "end_line": 5}},
+    {"id": "md:document:task-flow", "kind": "markdown_document", "source_path": "docs/architecture.md", "span": {"start_line": 1, "end_line": 6}}
+  ],
+  "expected_edges": [
+    {"source_id": "ts:component:TaskPanel", "target_id": "ts:function:fetchTask", "relation": "calls", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "frontend/src/TaskPanel.tsx", "span": {"start_line": 6, "end_line": 6}}},
+    {"source_id": "ts:function:fetchTask", "target_id": "py:endpoint:GET:/api/tasks/{task_id}", "relation": "invokes_endpoint", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "frontend/src/api.ts", "span": {"start_line": 4, "end_line": 4}}},
+    {"source_id": "py:endpoint:GET:/api/tasks/{task_id}", "target_id": "py:function:require_task", "relation": "calls", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "backend/api.py", "span": {"start_line": 12, "end_line": 12}}},
+    {"source_id": "py:function:require_task", "target_id": "py:function:get_task", "relation": "calls", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "backend/service.py", "span": {"start_line": 6, "end_line": 6}}},
+    {"source_id": "py:function:get_task", "target_id": "py:model:Task", "relation": "reads_model", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "backend/repository.py", "span": {"start_line": 3, "end_line": 7}}},
+    {"source_id": "py:test:test_read_task", "target_id": "py:endpoint:GET:/api/tasks/{task_id}", "relation": "tests", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "backend/tests/test_api.py", "span": {"start_line": 5, "end_line": 5}}},
+    {"source_id": "md:document:task-flow", "target_id": "ts:component:TaskPanel", "relation": "documents", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "docs/architecture.md", "span": {"start_line": 3, "end_line": 4}}}
+  ],
+  "expected_ambiguous_relationships": [],
+  "expected_query_results": [{"query_id": "fullstack-task-flow", "expected_node_ids": ["ts:component:TaskPanel", "ts:function:fetchTask", "py:endpoint:GET:/api/tasks/{task_id}", "py:function:require_task", "py:function:get_task", "py:model:Task"]}],
+  "expected_dependency_paths": [{"id": "task-ui-to-model", "node_ids": ["ts:component:TaskPanel", "ts:function:fetchTask", "py:endpoint:GET:/api/tasks/{task_id}", "py:function:require_task", "py:function:get_task", "py:model:Task"], "edge_relations": ["calls", "invokes_endpoint", "calls", "calls", "reads_model"]}],
+  "expected_change_impacts": [{"case_id": "fullstack-service-change", "expected_affected_symbol_ids": ["py:function:require_task", "py:endpoint:GET:/api/tasks/{task_id}", "py:test:test_read_task"]}]
+}

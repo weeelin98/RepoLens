@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "fixture_id": "python_service",
+  "description": "A small Python service with a repository boundary and pytest coverage.",
+  "languages": ["python"],
+  "repository": "repo",
+  "gold": "gold.json",
+  "questions": "questions.jsonl",
+  "diff_cases": ["diffs/service_change.json"]
+}

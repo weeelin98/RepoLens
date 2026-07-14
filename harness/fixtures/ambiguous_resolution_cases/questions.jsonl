@@ -1,0 +1,1 @@
+{"id":"ambiguous-handler","category":"ambiguity","question":"Which handler can dispatch call?","expected_node_ids":["py:function:dispatch","py:function:alpha.handle","py:function:beta.handle"],"expected_edge_relations":["calls"],"expected_source_citations":[{"source_path":"dispatch.py","span":{"start_line":1,"end_line":3}}],"maximum_context_tokens":550}

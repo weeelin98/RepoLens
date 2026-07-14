@@ -1,0 +1,8 @@
+diff --git a/src/ProfileCard.tsx b/src/ProfileCard.tsx
+--- a/src/ProfileCard.tsx
++++ b/src/ProfileCard.tsx
+@@ -6,3 +6,3 @@
+   useEffect(() => { void loadProfile(id).then(setProfile); }, [id]);
+-  return <h2>{profile?.name ?? "Loading"}</h2>;
++  return <h2 className="profile">{profile?.name ?? "Loading"}</h2>;
+ }

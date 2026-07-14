@@ -1,0 +1,7 @@
+diff --git a/alpha.py b/alpha.py
+--- a/alpha.py
++++ b/alpha.py
+@@ -1,2 +1,2 @@
+ def handle(value: str) -> str:
+-    return f"alpha:{value}"
++    return f"alpha={value}"

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "expected_nodes": [
+    {"id": "ts:component:ProfileCard", "kind": "react_component", "source_path": "src/ProfileCard.tsx", "span": {"start_line": 4, "end_line": 8}},
+    {"id": "ts:function:loadProfile", "kind": "function", "source_path": "src/api.ts", "span": {"start_line": 3, "end_line": 6}},
+    {"id": "ts:model:Profile", "kind": "data_model", "source_path": "src/api.ts", "span": {"start_line": 1, "end_line": 1}}
+  ],
+  "expected_edges": [
+    {"source_id": "ts:component:ProfileCard", "target_id": "ts:function:loadProfile", "relation": "calls", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "src/ProfileCard.tsx", "span": {"start_line": 6, "end_line": 6}}}
+  ],
+  "expected_ambiguous_relationships": [],
+  "expected_query_results": [{"query_id": "profile-fetch", "expected_node_ids": ["ts:component:ProfileCard", "ts:function:loadProfile"]}],
+  "expected_dependency_paths": [{"id": "component-to-client", "node_ids": ["ts:component:ProfileCard", "ts:function:loadProfile"], "edge_relations": ["calls"]}],
+  "expected_change_impacts": [{"case_id": "frontend-component-change", "expected_affected_symbol_ids": ["ts:component:ProfileCard"]}]
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "expected_nodes": [
+    {"id": "md:document:architecture", "kind": "markdown_document", "source_path": "docs/architecture.md", "span": {"start_line": 1, "end_line": 17}},
+    {"id": "md:section:rendering", "kind": "markdown_section", "source_path": "docs/architecture.md", "span": {"start_line": 5, "end_line": 12}},
+    {"id": "py:function:build_report", "kind": "function", "source_path": "report.py", "span": {"start_line": 1, "end_line": 2}}
+  ],
+  "expected_edges": [
+    {"source_id": "md:document:architecture", "target_id": "py:function:build_report", "relation": "documents", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "docs/architecture.md", "span": {"start_line": 3, "end_line": 3}}}
+  ],
+  "expected_ambiguous_relationships": [],
+  "expected_query_results": [{"query_id": "documented-entry", "expected_node_ids": ["md:document:architecture", "py:function:build_report"]}],
+  "expected_dependency_paths": [{"id": "docs-to-function", "node_ids": ["md:document:architecture", "py:function:build_report"], "edge_relations": ["documents"]}],
+  "expected_change_impacts": [{"case_id": "docs-rendering-change", "expected_affected_symbol_ids": ["md:document:architecture", "md:section:rendering"]}]
+}

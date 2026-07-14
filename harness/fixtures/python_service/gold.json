@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "expected_nodes": [
+    {"id": "py:function:describe_item", "kind": "function", "source_path": "catalog/service.py", "span": {"start_line": 4, "end_line": 6}},
+    {"id": "py:function:get_item", "kind": "function", "source_path": "catalog/repository.py", "span": {"start_line": 4, "end_line": 5}},
+    {"id": "py:test:test_describe_item", "kind": "test", "source_path": "tests/test_service.py", "span": {"start_line": 4, "end_line": 5}}
+  ],
+  "expected_edges": [
+    {"source_id": "py:function:describe_item", "target_id": "py:function:get_item", "relation": "calls", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "catalog/service.py", "span": {"start_line": 5, "end_line": 5}}},
+    {"source_id": "py:test:test_describe_item", "target_id": "py:function:describe_item", "relation": "tests", "evidence_kind": "resolver_derived", "source_citation": {"source_path": "tests/test_service.py", "span": {"start_line": 5, "end_line": 5}}}
+  ],
+  "expected_ambiguous_relationships": [],
+  "expected_query_results": [{"query_id": "python-service-flow", "expected_node_ids": ["py:function:describe_item", "py:function:get_item"]}],
+  "expected_dependency_paths": [{"id": "describe-to-repository", "node_ids": ["py:function:describe_item", "py:function:get_item"], "edge_relations": ["calls"]}],
+  "expected_change_impacts": [{"case_id": "python-service-change", "expected_affected_symbol_ids": ["py:function:describe_item", "py:test:test_describe_item"]}]
+}

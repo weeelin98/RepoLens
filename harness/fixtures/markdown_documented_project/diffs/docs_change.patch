@@ -1,0 +1,8 @@
+diff --git a/docs/architecture.md b/docs/architecture.md
+--- a/docs/architecture.md
++++ b/docs/architecture.md
+@@ -5,3 +5,3 @@
+ ## Rendering
+ 
+-Reports are deterministic.
++Reports use deterministic ordering.
