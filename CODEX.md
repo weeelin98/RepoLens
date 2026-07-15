@@ -1,7 +1,7 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 0 in progress  
-Last updated: 2026-07-14
+Status: Milestone 0 complete
+Last updated: 2026-07-15
 
 ## Mission and user problem
 
@@ -471,10 +471,29 @@ syntax trees and require controlled gold migrations.
 - [x] Inspected the reference project's public README at a high level.
 - [x] Wrote the pre-code design summary and clean-room reference analysis.
 - [x] Created project operating guidance and ExecPlan convention.
-- [ ] Implement package foundations and CLI behavior.
-- [ ] Create all five fixture corpora, gold records, questions, and diff cases.
-- [ ] Add tests, tooling, CI, and run the full validation loop.
-- [ ] Record exact results and mark Milestone 0 complete.
+- [x] Implemented package foundations and CLI behavior.
+- [x] Created all five fixture corpora, gold records, questions, and diff cases.
+- [x] Added tests, tooling, CI, and ran the full validation loop.
+- [x] Recorded exact results and marked Milestone 0 complete.
+
+Next slice: Milestone 1.1 repository scanning.
+
+## Milestone 0 validation record
+
+Validated on 2026-07-15 from the repository root with Python 3.11.15:
+
+- `uv run ruff format --check .` — exit 0; `37 files already formatted`.
+- `uv run ruff check .` — exit 0; `All checks passed!`.
+- `uv run mypy src tests` — exit 0; `Success: no issues found in 23 source files`.
+- `uv run pytest` — exit 0; 23 tests passed in 0.29 seconds; total coverage was 87%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff
+  cases were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+
+The `make check` aggregate could not start in the validation shell because GNU Make was
+not installed. Its five underlying commands are the first five commands recorded above;
+each was run directly and passed. This record does not claim that `make check` itself ran.
 
 ## Discovery and surprise log
 
@@ -486,6 +505,11 @@ syntax trees and require controlled gold migrations.
 - **2026-07-14:** GitHub CLI is absent. GitHub remote creation must use the connected plugin
   if it exposes repository creation, or install/authenticate `gh` as an explicit external
   step; local Milestone 0 work remains unblocked.
+- **2026-07-15:** The six requested validation commands passed when run independently. The
+  harness contains five valid fixtures, five questions, and five diff cases; the test suite
+  contains 23 passing tests and reports 87% total coverage.
+- **2026-07-15:** GNU Make is absent from the Windows validation shell, so `make check`
+  could not start. Each command in its Makefile target was run directly and passed.
 
 ## Final portfolio deliverables
 

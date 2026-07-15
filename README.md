@@ -3,10 +3,12 @@
 RepoLens is a local-first context compiler for AI coding agents. It is being built as a
 clean-room, evaluation-driven project for mixed Python and TypeScript repositories.
 
-Milestone 0 provides the repository operating contract, typed graph foundations,
-deterministic stable IDs/serialization, extractor interfaces, evaluation metrics and
-schemas, five synthetic fixture corpora, a smoke validator, and a CLI scaffold. It does not
-yet parse a repository.
+Milestone 0 is complete. It provides the repository operating contract, typed graph
+foundations, deterministic stable IDs/serialization, extractor interfaces, evaluation
+metrics and schemas, five synthetic fixture corpora, a smoke validator, and a CLI scaffold.
+It does not yet parse a repository.
+
+The next slice is Milestone 1.1 repository scanning.
 
 ## Development
 
