@@ -1,7 +1,7 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 0 complete
-Last updated: 2026-07-15
+Status: Milestone 1.1 contracts ready; scanner implementation is developer-owned
+Last updated: 2026-07-16
 
 ## Mission and user problem
 
@@ -462,6 +462,15 @@ syntax trees and require controlled gold migrations.
   early even while production behavior is intentionally unfinished.
 - **2026-07-14 — Clean-room Graphify reference.** Public product ideas inform requirements;
   no source implementation is reused.
+- **2026-07-16 — Scanner output excludes absolute paths.** `SourceFile` contains only a
+  normalized repository-relative path, lowercase suffix, and observed byte size so public
+  deterministic results remain portable and serialization-safe.
+- **2026-07-16 — Milestone 1.1 uses root `.gitignore` scope.** Root Git-style patterns and
+  ordinary negation are in scope; nested `.gitignore` stacking is explicitly deferred.
+  `pathspec` will become a direct runtime dependency only when matching is implemented.
+- **2026-07-16 — Expected scanner failures use one result channel.** Invalid roots produce
+  empty diagnosed results; per-entry failures produce partial results; aggregate count/byte
+  limits stop at the first excluded eligible file.
 
 ## Progress
 
@@ -477,6 +486,21 @@ syntax trees and require controlled gold migrations.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
 Next slice: Milestone 1.1 repository scanning.
+
+### Milestone 1.1 — Repository scanner
+
+- [x] Created the self-contained scanner ExecPlan with exact API, ignore, symlink, limit,
+  diagnostic, security, testing, and manual-implementation decisions.
+- [x] Added frozen scanner metadata/result contracts without machine-specific absolute
+  paths or graph/extractor dependencies.
+- [x] Added hand-written behavioral expectations covering all requested scanner contracts;
+  unfinished production behavior remains strict xfail.
+- [x] Kept the existing harness gold unchanged because this slice returns metadata rather
+  than graph facts.
+- [ ] Developer: implement root validation, traversal, pruning, normalization, and stat
+  metadata in `scan_repository()`.
+- [ ] Developer: implement root `.gitignore`, symlink safety, and deterministic limits.
+- [ ] Shared: remove only satisfied xfails and complete the M1.1 learning checkpoint.
 
 ## Milestone 0 validation record
 
@@ -495,6 +519,28 @@ The `make check` aggregate could not start in the validation shell because GNU M
 not installed. Its five underlying commands are the first five commands recorded above;
 each was run directly and passed. This record does not claim that `make check` itself ran.
 
+## Milestone 1.1 contracts-only validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format --check .` — exit 0; `39 files already formatted`.
+- `uv run ruff check .` — exit 0; `All checks passed!`.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest` — exit 0; 25 tests passed normally, 12 strict M1.1 tests xfailed,
+  and 2 symlink tests skipped in 0.35 seconds; total coverage was 89%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff
+  cases were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+The 25 normal passes include all 23 pre-existing Milestone 0 tests. This run deliberately
+does not implement scanner traversal, ignore matching, symlink handling, or resource-limit
+behavior. The 12 reachable behavioral tests remain strict xfails until the developer
+implements their phases. Windows error 1314 prevented creation of both test symlinks, so
+those tests skipped safely. GNU Make was not invoked; this record does not claim
+`make check` ran.
+
 ## Discovery and surprise log
 
 - **2026-07-14:** The configured workspace path did not yet exist; it was created before
@@ -510,6 +556,13 @@ each was run directly and passed. This record does not claim that `make check` i
   contains 23 passing tests and reports 87% total coverage.
 - **2026-07-15:** GNU Make is absent from the Windows validation shell, so `make check`
   could not start. Each command in its Makefile target was run directly and passed.
+- **2026-07-16:** The initiating request named branch `Python-definition-extractor`, but
+  Git reported the only local/current branch as `main`. No branch was silently created or
+  switched.
+- **2026-07-16:** `pathspec` appears transitively in `uv.lock` but is not declared in
+  `pyproject.toml`; production ignore matching must declare it directly when implemented.
+- **2026-07-16:** Windows denied both test symlink creations with error 1314. The two tests
+  skipped safely, while non-symlink behavioral contracts remained strict xfails.
 
 ## Final portfolio deliverables
 

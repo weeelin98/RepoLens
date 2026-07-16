@@ -8,7 +8,9 @@ foundations, deterministic stable IDs/serialization, extractor interfaces, evalu
 metrics and schemas, five synthetic fixture corpora, a smoke validator, and a CLI scaffold.
 It does not yet parse a repository.
 
-The next slice is Milestone 1.1 repository scanning.
+Milestone 1.1 repository scanning is active. Its typed contracts and strict behavioral
+expectations are defined in `.agent/plans/m1-1-repository-scanner.md`; the developer owns
+the still-unimplemented traversal and resource-limit logic.
 
 ## Development
 
