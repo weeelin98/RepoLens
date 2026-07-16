@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.1D implemented locally; real symlink acceptance pending Linux CI
+Status: Milestone 1.1 Repository Scanner complete; Milestone 1.2A is next
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -254,7 +254,7 @@ gold output. Determinism tests compare bytes across repeated runs and shuffled i
 
 RepoLens reads local repositories and writes only beneath the configured output directory.
 It never executes indexed source, imports target modules, evaluates package scripts, or
-follows symlinks outside the repository by default. Discovery later enforces maximum file
+follows symlinks outside the repository by default. Discovery enforces maximum file
 bytes, repository bytes/file count, ignored directories, allowed suffixes, decoding policy,
 and configurable time/diagnostic limits. Generated snippets escape Markdown fences. Git
 commands use argument arrays and validated ranges. Tests never require a network. MCP input
@@ -502,9 +502,9 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next slice: Milestone 1.1 repository scanning.
+Next active slice: Milestone 1.2A — Basic Python definition extraction.
 
-### Milestone 1.1 — Repository scanner
+### Milestone 1.1 — Repository scanner (complete)
 
 - [x] Created the self-contained scanner ExecPlan with exact API, ignore, symlink, limit,
   diagnostic, security, testing, and manual-implementation decisions.
@@ -514,22 +514,27 @@ Next slice: Milestone 1.1 repository scanning.
   unfinished production behavior remains strict xfail.
 - [x] Kept the existing harness gold unchanged because this slice returns metadata rather
   than graph facts.
-- [x] Implemented root validation, resolved top-down traversal, pre-descent default and
-  directory-symlink pruning, normalized suffix filtering, POSIX metadata, and byte totals.
+- [x] M1.1A complete: implemented root validation, resolved top-down traversal,
+  pre-descent default and directory-symlink pruning, normalized suffix filtering, POSIX
+  metadata, and byte totals.
 - [x] Removed strict xfails only for behavior fully delivered by M1.1A and added an explicit
   custom `supported_suffixes` test.
-- [x] Implemented root `.gitignore` matching and negation, pre-descent directory pruning,
-  and pre-`stat()` file exclusion; declared pathspec as a direct runtime dependency.
-- [x] Implemented maximum individual file bytes, accepted file count, and accepted
-  repository bytes with exact-boundary acceptance and stable diagnostics.
+- [x] M1.1C complete: implemented root `.gitignore` matching and negation, pre-descent
+  directory pruning, and pre-`stat()` file exclusion; declared pathspec as a direct runtime
+  dependency.
+- [x] M1.1B complete: implemented maximum individual file bytes, accepted file count, and
+  accepted repository bytes with exact-boundary acceptance and stable diagnostics.
 - [x] Added explicit tests for boundary equality, excluded-file accounting, deterministic
   aggregate stops, and root-ignore interaction.
-- [x] Implemented external file-symlink containment, lexical-path inclusion for contained
-  links, and focused deterministic filesystem diagnostics before resource accounting.
+- [x] M1.1D complete: implemented external file-symlink containment, lexical-path inclusion
+  for contained links, and focused deterministic filesystem diagnostics before resource
+  accounting.
 - [x] Added platform-independent containment/failure tests plus real directory, external
   file, and contained file symlink integrations for Linux CI.
-- [ ] Shared: verify real symlink integrations on Linux CI and complete the M1.1 learning
-  checkpoint.
+- [x] Linux GitHub Actions passed after push and verified the real directory, escaping-file,
+  and contained-file symlink integrations skipped by the local Windows environment.
+- [x] Closed Milestone 1.1 documentation and handed off to M1.2A without marking all of
+  Milestone 1 complete.
 
 ## Milestone 0 validation record
 
@@ -657,11 +662,13 @@ Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
   were valid.
 - `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
   no network is required.
+- `git diff --check` — exit 0.
 
 Windows error 1314 prevented creation of the real directory, escaping-file, and
 contained-file symlinks. Platform-independent focused tests passed for each decision path;
-Ubuntu Actions must verify the three integrations against real symlinks. GNU Make is not
-installed in this shell, so this record does not claim `make check` ran.
+Linux GitHub Actions subsequently passed after push and verified all three integrations
+against real symlinks. GNU Make is not installed in this shell, so this record does not
+claim `make check` ran.
 
 ## Discovery and surprise log
 
@@ -704,7 +711,8 @@ installed in this shell, so this record does not claim `make check` ran.
 - **2026-07-16:** Windows error 1314 prevented all three real-symlink integrations from
   creating links. Platform-independent focused tests exercise directory pruning, internal
   and external containment, broken-link resolution, permission failures, and ordinary
-  metadata failures locally; Ubuntu CI must still verify the real filesystem integrations.
+  metadata failures locally. Linux GitHub Actions later passed after push and verified the
+  real filesystem integrations.
 
 ## Final portfolio deliverables
 

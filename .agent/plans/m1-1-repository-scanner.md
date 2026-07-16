@@ -73,7 +73,7 @@ Milestone 1.2. The scanner never returns file contents.
 
 ## Milestone phases
 
-### Phase 0 — Contracts and executable expectations (Codex-owned, this run)
+### Phase 0 — Contracts and executable expectations (complete)
 
 Create `src/repolens/scanner.py` with frozen metadata/result contracts and an explicit
 developer-owned placeholder. Create `tests/test_scanner.py` with hand-written expected
@@ -96,12 +96,14 @@ factory and Git wildmatch semantics, and apply it to repository-relative POSIX p
 Preserve negation and prune ignored directories when Git semantics permit pruning. This
 phase was implemented as the explicitly authorized M1.1C slice on 2026-07-16.
 
-### Phase 3 — Symlinks and filesystem failures (developer-owned)
+### Phase 3 — Symlinks and filesystem failures (M1.1D, complete)
 
 Reject symlinked directories from `dirnames`, resolve file symlinks for containment, and
 collect size with `Path.stat()` before inclusion. Convert expected permission/stat failures
 to stable diagnostics without embedding OS-specific exception text. Make symlink and
 filesystem-failure tests pass, with safe platform skips where link creation is unavailable.
+M1.1D implemented this phase on 2026-07-16; Linux GitHub Actions later verified the real
+symlink integrations that Windows could not create.
 
 ### Phase 4 — Resource limits (M1.1B, complete)
 
@@ -110,7 +112,7 @@ order. Continue after per-file oversize; stop with a single diagnostic at the fi
 count/aggregate breach. Sort public collections before returning. M1.1B implemented this
 phase on 2026-07-16 without changing the existing root ignore behavior.
 
-### Phase 5 — Integration review (shared)
+### Phase 5 — Integration review (complete)
 
 Remove xfails only from behavior that is actually implemented. Run every validation
 command, inspect `git diff --stat`, `git diff --check`, and `git status --short`, update this
@@ -448,8 +450,10 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
   and accepted-repository-byte limits with stable diagnostics and aggregate stop behavior.
 - [x] 2026-07-16: Added exact-boundary, ignored/unsupported accounting, rejected-total,
   first-excluded, single-diagnostic, and repeat-scan resource tests.
-- [ ] Shared: verify real symlink integrations on Linux CI and complete the M1.1 learning
-  checkpoint.
+- [x] 2026-07-16: Linux GitHub Actions passed after push and verified the real directory,
+  escaping-file, and contained-file symlink integrations.
+- [x] 2026-07-16: Closed Milestone 1.1 with M1.1A, M1.1B, M1.1C, and M1.1D complete;
+  Milestone 1 remains active and M1.2A is next.
 
 ## Decisions
 
@@ -525,8 +529,8 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
   both symlink tests because Windows denied link creation. Scanner module coverage was 96%.
 - **2026-07-16:** Windows denied all three real-symlink test creations with error 1314.
   Focused monkeypatch-backed tests cover the same pruning, containment, resolution-failure,
-  and metadata-failure decisions locally; Linux Actions remains responsible for verifying
-  the real directory, escaping-file, and contained-file symlink integrations.
+  and metadata-failure decisions locally. Linux GitHub Actions later passed after push and
+  verified the real directory, escaping-file, and contained-file symlink integrations.
 
 ## Validation transcript
 
@@ -644,11 +648,12 @@ M1.1D local validation on 2026-07-16, Python 3.11.15:
   were valid.
 - `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
   no network is required.
+- `git diff --check` — exit 0.
 
 Windows error 1314 prevented real symlink creation in all three integration tests.
-Platform-independent focused tests passed locally, while Ubuntu Actions must verify the
-real directory, external-file, and contained-file symlink behaviors. GNU Make is
-unavailable, so this record does not claim `make check` ran.
+Platform-independent focused tests passed locally. Linux GitHub Actions subsequently passed
+after push and verified the real directory, external-file, and contained-file symlink
+behaviors. GNU Make is unavailable, so this record does not claim `make check` ran.
 
 ## Learning checkpoint
 
@@ -667,6 +672,7 @@ The contracts-only outcome established the typed scanner boundary and executable
 behaviors. M1.1A implements the Phase 1 basic deterministic scan, M1.1C implements root
 `.gitignore`, M1.1B enforces all three configured resource limits, and M1.1D implements
 directory-link pruning, file-link containment, and focused filesystem diagnostics before
-accounting. Local implementation is complete, while real symlink acceptance remains
-pending on Linux CI. After that check, Milestone 1.2 definition extraction is the next
-slice; `index` remains unfinished and graph work remains out of scope.
+accounting. Linux GitHub Actions passed after push and verified the real symlink behavior
+that Windows privilege error 1314 prevented from running locally. Milestone 1.1 is complete,
+but Milestone 1 remains active. The next active slice is Milestone 1.2A — Basic Python
+definition extraction; `index` remains unfinished and graph work remains out of scope.
