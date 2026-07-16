@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -9,10 +11,7 @@ from repolens.config import RuntimeConfig
 from repolens.scanner import ScanDiagnosticCode, ScanResult, SourceFile, scan_repository
 
 MISSING_LATER_SCANNER_BEHAVIOR = pytest.mark.xfail(
-    reason=(
-        "Milestone 1.1: ignore, resource-limit, and external file-symlink behavior "
-        "is not implemented"
-    ),
+    reason=("Milestone 1.1: resource-limit and external file-symlink behavior is not implemented"),
     strict=True,
 )
 
@@ -56,7 +55,6 @@ def test_prunes_default_ignored_directories(tmp_path: Path, ignored_directory: s
     assert result_paths(result) == ("visible.py",)
 
 
-@MISSING_LATER_SCANNER_BEHAVIOR
 def test_respects_root_gitignore_and_file_negation(tmp_path: Path) -> None:
     write_file(tmp_path, ".gitignore", "*.py\n!important.py\nignored/\n")
     write_file(tmp_path, "ignored/hidden.md")
@@ -67,6 +65,80 @@ def test_respects_root_gitignore_and_file_negation(tmp_path: Path) -> None:
     result = scan_repository(tmp_path, RuntimeConfig())
 
     assert result_paths(result) == ("guide.md", "important.py")
+
+
+def test_missing_root_gitignore_preserves_scan_behavior(tmp_path: Path) -> None:
+    write_file(tmp_path, "module.py", "python")
+    write_file(tmp_path, "guide.md", "markdown")
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert result_paths(result) == ("guide.md", "module.py")
+    assert result.diagnostics == ()
+    assert result.total_bytes == 14
+
+
+def test_nested_gitignore_is_not_loaded(tmp_path: Path) -> None:
+    write_file(tmp_path, "nested/.gitignore", "*.py\n")
+    write_file(tmp_path, "nested/visible.py", "visible")
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert result_paths(result) == ("nested/visible.py",)
+
+
+def test_ignored_file_is_excluded_before_stat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_file(tmp_path, ".gitignore", "ignored.py\n")
+    write_file(tmp_path, "ignored.py", "ignored")
+    write_file(tmp_path, "visible.py", "visible")
+    original_stat = Path.stat
+
+    def guarded_stat(path: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        if path.name == "ignored.py":
+            raise AssertionError("ignored files must not be statted")
+        return original_stat(path, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", guarded_stat)
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert result_paths(result) == ("visible.py",)
+    assert result.total_bytes == 7
+
+
+def test_ignored_directory_is_pruned_before_descent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_file(tmp_path, ".gitignore", "ignored/\n")
+    write_file(tmp_path, "ignored/hidden.py")
+    write_file(tmp_path, "visible/kept.py")
+    visited: list[str] = []
+
+    def fake_walk(
+        root: Path,
+        *,
+        topdown: bool,
+        followlinks: bool,
+    ) -> Iterator[tuple[str, list[str], list[str]]]:
+        assert root == tmp_path.resolve()
+        assert topdown is True
+        assert followlinks is False
+        dirnames = ["visible", "ignored"]
+        yield str(root), dirnames, []
+        for dirname in dirnames:
+            visited.append(dirname)
+            yield str(root / dirname), [], ["hidden.py" if dirname == "ignored" else "kept.py"]
+
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert visited == ["visible"]
+    assert result_paths(result) == ("visible/kept.py",)
 
 
 @MISSING_LATER_SCANNER_BEHAVIOR

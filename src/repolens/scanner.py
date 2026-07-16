@@ -6,6 +6,7 @@ import os
 from enum import StrEnum
 from pathlib import Path, PureWindowsPath
 
+from pathspec import GitIgnoreSpec
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from repolens.config import RuntimeConfig
@@ -108,6 +109,15 @@ def scan_repository(
         return ScanResult(diagnostics=(diagnostic,))
 
     resolved_root = repository_root.resolve()
+    root_gitignore = resolved_root / ".gitignore"
+    ignore_spec = (
+        GitIgnoreSpec.from_lines(
+            root_gitignore.read_text(encoding="utf-8", errors="replace").splitlines(),
+            "gitignore",
+        )
+        if root_gitignore.is_file() and not root_gitignore.is_symlink()
+        else None
+    )
     normalized_suffixes = frozenset(
         suffix.casefold() if suffix.startswith(".") else f".{suffix.casefold()}"
         for suffix in supported_suffixes
@@ -121,12 +131,16 @@ def scan_repository(
         followlinks=False,
     ):
         current_path = Path(current_directory)
-        dirnames[:] = sorted(
-            dirname
-            for dirname in dirnames
-            if dirname not in DEFAULT_IGNORED_DIRECTORIES
-            and not (current_path / dirname).is_symlink()
-        )
+        kept_directories: list[str] = []
+        for dirname in sorted(dirnames):
+            directory_path = current_path / dirname
+            if dirname in DEFAULT_IGNORED_DIRECTORIES or directory_path.is_symlink():
+                continue
+            relative_directory = directory_path.relative_to(resolved_root).as_posix() + "/"
+            if ignore_spec is not None and ignore_spec.match_file(relative_directory):
+                continue
+            kept_directories.append(dirname)
+        dirnames[:] = kept_directories
 
         for filename in sorted(filenames):
             path = current_path / filename
@@ -134,10 +148,14 @@ def scan_repository(
             if suffix not in normalized_suffixes:
                 continue
 
+            relative_path = path.relative_to(resolved_root).as_posix()
+            if ignore_spec is not None and ignore_spec.match_file(relative_path):
+                continue
+
             size_bytes = path.stat().st_size
             files.append(
                 SourceFile(
-                    relative_path=path.relative_to(resolved_root).as_posix(),
+                    relative_path=relative_path,
                     suffix=suffix,
                     size_bytes=size_bytes,
                 )
