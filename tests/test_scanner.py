@@ -10,11 +10,6 @@ from pydantic import ValidationError
 from repolens.config import RuntimeConfig
 from repolens.scanner import ScanDiagnosticCode, ScanResult, SourceFile, scan_repository
 
-MISSING_EXTERNAL_FILE_SYMLINK_BEHAVIOR = pytest.mark.xfail(
-    reason="Milestone 1.1: external file-symlink behavior is not implemented",
-    strict=True,
-)
-
 
 def write_file(root: Path, relative_path: str, content: str = "x") -> Path:
     path = root / relative_path
@@ -283,7 +278,44 @@ def test_does_not_follow_symlinked_directory(tmp_path: Path) -> None:
     assert result_paths(result) == ("target/nested.py",)
 
 
-@MISSING_EXTERNAL_FILE_SYMLINK_BEHAVIOR
+def test_prunes_symlinked_directory_before_descent_without_platform_symlinks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_file(tmp_path, "linked/hidden.py")
+    write_file(tmp_path, "visible/kept.py")
+    visited: list[str] = []
+    original_is_symlink = Path.is_symlink
+
+    def fake_is_symlink(path: Path) -> bool:
+        if path == tmp_path.resolve() / "linked":
+            return True
+        return original_is_symlink(path)
+
+    def fake_walk(
+        root: Path,
+        *,
+        topdown: bool,
+        followlinks: bool,
+    ) -> Iterator[tuple[str, list[str], list[str]]]:
+        assert root == tmp_path.resolve()
+        assert topdown is True
+        assert followlinks is False
+        dirnames = ["visible", "linked"]
+        yield str(root), dirnames, []
+        for dirname in dirnames:
+            visited.append(dirname)
+            yield str(root / dirname), [], ["kept.py" if dirname == "visible" else "hidden.py"]
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    monkeypatch.setattr(os, "walk", fake_walk)
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert visited == ["visible"]
+    assert result_paths(result) == ("visible/kept.py",)
+
+
 def test_excludes_file_symlink_that_escapes_repository(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -299,6 +331,187 @@ def test_excludes_file_symlink_that_escapes_repository(tmp_path: Path) -> None:
     assert result.files == ()
     assert diagnostic_pairs(result) == (
         ("escape.py", ScanDiagnosticCode.OUTSIDE_REPOSITORY_SYMLINK),
+    )
+
+
+def test_includes_contained_file_symlink_under_lexical_path(tmp_path: Path) -> None:
+    target = write_file(tmp_path, "target.txt", "target")
+    link = tmp_path / "alias.py"
+    try:
+        link.symlink_to(target)
+    except (NotImplementedError, OSError) as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert result.files == (SourceFile(relative_path="alias.py", suffix=".py", size_bytes=6),)
+    assert result.diagnostics == ()
+
+
+def test_external_file_symlink_is_excluded_before_limits_without_platform_symlinks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    escape = write_file(repository, "a_escape.py", "escape")
+    write_file(repository, "z_valid.py", "v")
+    outside = write_file(tmp_path, "outside.py", "outside").resolve()
+    original_is_symlink = Path.is_symlink
+    original_resolve = Path.resolve
+
+    def fake_is_symlink(path: Path) -> bool:
+        if path == escape:
+            return True
+        return original_is_symlink(path)
+
+    def fake_resolve(path: Path, strict: bool = False) -> Path:
+        if path == escape:
+            assert strict is True
+            return outside
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    monkeypatch.setattr(Path, "resolve", fake_resolve)
+
+    result = scan_repository(
+        repository,
+        RuntimeConfig(maximum_file_count=1, maximum_repository_bytes=1),
+    )
+
+    assert result_paths(result) == ("z_valid.py",)
+    assert result.total_bytes == 1
+    assert diagnostic_pairs(result) == (
+        ("a_escape.py", ScanDiagnosticCode.OUTSIDE_REPOSITORY_SYMLINK),
+    )
+    assert str(outside) not in result.diagnostics[0].message
+
+
+def test_contained_file_symlink_uses_lexical_path_without_platform_symlinks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    alias = write_file(tmp_path, "alias.py", "target")
+    target = write_file(tmp_path, "target.txt", "target").resolve()
+    original_is_symlink = Path.is_symlink
+    original_resolve = Path.resolve
+
+    def fake_is_symlink(path: Path) -> bool:
+        if path == alias:
+            return True
+        return original_is_symlink(path)
+
+    def fake_resolve(path: Path, strict: bool = False) -> Path:
+        if path == alias:
+            assert strict is True
+            return target
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    monkeypatch.setattr(Path, "resolve", fake_resolve)
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert result.files == (SourceFile(relative_path="alias.py", suffix=".py", size_bytes=6),)
+    assert result.diagnostics == ()
+
+
+def test_symlink_resolution_failures_are_deterministic_and_do_not_consume_limits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    broken = write_file(tmp_path, "a_broken.py")
+    denied = write_file(tmp_path, "b_denied.py")
+    write_file(tmp_path, "c_valid.py")
+    original_is_symlink = Path.is_symlink
+    original_resolve = Path.resolve
+
+    def fake_is_symlink(path: Path) -> bool:
+        if path in {broken, denied}:
+            return True
+        return original_is_symlink(path)
+
+    def fake_resolve(path: Path, strict: bool = False) -> Path:
+        if path == broken:
+            raise FileNotFoundError
+        if path == denied:
+            raise PermissionError
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    monkeypatch.setattr(Path, "resolve", fake_resolve)
+    config = RuntimeConfig(maximum_file_count=1, maximum_repository_bytes=1)
+
+    first = scan_repository(tmp_path, config)
+    second = scan_repository(tmp_path, config)
+
+    assert first == second
+    assert result_paths(first) == ("c_valid.py",)
+    assert first.total_bytes == 1
+    assert diagnostic_pairs(first) == (
+        ("a_broken.py", ScanDiagnosticCode.STAT_FAILED),
+        ("b_denied.py", ScanDiagnosticCode.PERMISSION_DENIED),
+    )
+
+
+def test_symlink_metadata_failures_are_deterministic_and_do_not_consume_limits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = write_file(tmp_path, "a_failed.py")
+    denied = write_file(tmp_path, "b_denied.py")
+    write_file(tmp_path, "c_valid.py")
+    original_is_symlink = Path.is_symlink
+
+    def fake_is_symlink(path: Path) -> bool:
+        if path == failed:
+            raise OSError
+        if path == denied:
+            raise PermissionError
+        return original_is_symlink(path)
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    config = RuntimeConfig(maximum_file_count=1, maximum_repository_bytes=1)
+
+    first = scan_repository(tmp_path, config)
+    second = scan_repository(tmp_path, config)
+
+    assert first == second
+    assert result_paths(first) == ("c_valid.py",)
+    assert first.total_bytes == 1
+    assert diagnostic_pairs(first) == (
+        ("a_failed.py", ScanDiagnosticCode.STAT_FAILED),
+        ("b_denied.py", ScanDiagnosticCode.PERMISSION_DENIED),
+    )
+
+
+def test_stat_failures_are_deterministic_and_do_not_consume_limits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = write_file(tmp_path, "a_failed.py")
+    denied = write_file(tmp_path, "b_denied.py")
+    write_file(tmp_path, "c_valid.py")
+    original_stat = Path.stat
+
+    def fake_stat(path: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        if path == failed and follow_symlinks:
+            raise OSError
+        if path == denied and follow_symlinks:
+            raise PermissionError
+        return original_stat(path, follow_symlinks=follow_symlinks)
+
+    monkeypatch.setattr(Path, "stat", fake_stat)
+    config = RuntimeConfig(maximum_file_count=1, maximum_repository_bytes=1)
+
+    first = scan_repository(tmp_path, config)
+    second = scan_repository(tmp_path, config)
+
+    assert first == second
+    assert result_paths(first) == ("c_valid.py",)
+    assert first.total_bytes == 1
+    assert diagnostic_pairs(first) == (
+        ("a_failed.py", ScanDiagnosticCode.STAT_FAILED),
+        ("b_denied.py", ScanDiagnosticCode.PERMISSION_DENIED),
     )
 
 

@@ -8,10 +8,11 @@ foundations, deterministic stable IDs/serialization, extractor interfaces, evalu
 metrics and schemas, five synthetic fixture corpora, a smoke validator, and a CLI scaffold.
 It does not yet parse a repository.
 
-Milestone 1.1 repository scanning is active. M1.1A implements deterministic basic discovery
-and metadata collection, M1.1C adds repository-root `.gitignore` matching, and M1.1B
-enforces configured file/count/repository resource limits. External file-symlink safety and
-broader filesystem diagnostics remain planned in `.agent/plans/m1-1-repository-scanner.md`.
+Milestone 1.1 repository scanning is implemented locally. It provides deterministic basic
+discovery and metadata collection, repository-root `.gitignore` matching, configured
+file/count/repository resource limits, contained file-symlink handling, and focused
+filesystem diagnostics. Real symlink acceptance remains pending on Linux CI; Milestone 1.2
+definition extraction is the next implementation slice after that check.
 
 ## Development
 

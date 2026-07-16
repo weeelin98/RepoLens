@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.1A/B/C scanner discovery and resource limits implemented
+Status: Milestone 1.1D implemented locally; real symlink acceptance pending Linux CI
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -484,6 +484,11 @@ syntax trees and require controlled gold migrations.
   bytes are checked before append; their first breach produces one diagnostic and stops the
   deterministic scan.
 
+- **2026-07-16 — M1.1D separates lexical identity from resolved containment.** File-link
+  targets are resolved strictly and checked with `Path.relative_to`; accepted files retain
+  the repository-relative lexical link path. Expected metadata `PermissionError` and
+  `OSError` states become stable diagnostics without exception or absolute-target text.
+
 ## Progress
 
 ### Milestone 0
@@ -519,8 +524,12 @@ Next slice: Milestone 1.1 repository scanning.
   repository bytes with exact-boundary acceptance and stable diagnostics.
 - [x] Added explicit tests for boundary equality, excluded-file accounting, deterministic
   aggregate stops, and root-ignore interaction.
-- [ ] Developer: implement external file-symlink safety and filesystem error diagnostics.
-- [ ] Shared: remove only satisfied xfails and complete the M1.1 learning checkpoint.
+- [x] Implemented external file-symlink containment, lexical-path inclusion for contained
+  links, and focused deterministic filesystem diagnostics before resource accounting.
+- [x] Added platform-independent containment/failure tests plus real directory, external
+  file, and contained file symlink integrations for Linux CI.
+- [ ] Shared: verify real symlink integrations on Linux CI and complete the M1.1 learning
+  checkpoint.
 
 ## Milestone 0 validation record
 
@@ -632,6 +641,28 @@ GNU Make was not invoked; this record does not claim `make check` ran. Both syml
 skipped because Windows returned error 1314 before their scanner assertions. The escaping
 file-symlink test remains strict xfail on platforms that can create the link.
 
+## Milestone 1.1D validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 39 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 30 passed and 3 real-symlink
+  integrations skipped; scanner module coverage was 97%.
+- `uv run pytest` — exit 0; 53 passed and 3 real-symlink integrations skipped; total
+  coverage was 91%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+
+Windows error 1314 prevented creation of the real directory, escaping-file, and
+contained-file symlinks. Platform-independent focused tests passed for each decision path;
+Ubuntu Actions must verify the three integrations against real symlinks. GNU Make is not
+installed in this shell, so this record does not claim `make check` ran.
+
 ## Discovery and surprise log
 
 - **2026-07-14:** The configured workspace path did not yet exist; it was created before
@@ -670,6 +701,10 @@ file-symlink test remains strict xfail on platforms that can create the link.
 - **2026-07-16:** M1.1B was implemented after M1.1C in this worktree. The focused resource
   suite passed all 24 reachable scanner tests, skipped 2 Windows symlink cases, and reported
   96% scanner coverage.
+- **2026-07-16:** Windows error 1314 prevented all three real-symlink integrations from
+  creating links. Platform-independent focused tests exercise directory pruning, internal
+  and external containment, broken-link resolution, permission failures, and ordinary
+  metadata failures locally; Ubuntu CI must still verify the real filesystem integrations.
 
 ## Final portfolio deliverables
 

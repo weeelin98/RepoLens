@@ -441,12 +441,15 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
   focused `supported_suffixes` override test.
 - [x] 2026-07-16: Implemented M1.1C root-only Git ignore matching, negation, ignored-directory
   pruning, and pre-`stat()` ignored-file exclusion with pathspec 1.1.1.
-- [ ] Developer: implement symlink/filesystem diagnostics.
+- [x] 2026-07-16: Implemented file-symlink containment with strict resolution and
+  `Path.relative_to`, lexical link-path output, and focused filesystem diagnostics before
+  limit accounting.
 - [x] 2026-07-16: Implemented M1.1B deterministic individual-file, accepted-file-count,
   and accepted-repository-byte limits with stable diagnostics and aggregate stop behavior.
 - [x] 2026-07-16: Added exact-boundary, ignored/unsupported accounting, rejected-total,
   first-excluded, single-diagnostic, and repeat-scan resource tests.
-- [ ] Shared: complete M1.1 integration review and learning checkpoint.
+- [ ] Shared: verify real symlink integrations on Linux CI and complete the M1.1 learning
+  checkpoint.
 
 ## Decisions
 
@@ -483,6 +486,12 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
   or totals. Consequence: individual oversize continues, while aggregate limits add one
   diagnostic and stop the deterministic walk.
 
+- **2026-07-16 — Containment uses resolved paths; output uses lexical paths.** Alternative:
+  compare path strings or emit the resolved target. Rationale: `Path.relative_to` enforces
+  path-component containment without prefix ambiguity, while the link name is the stable
+  repository identity. Consequence: external targets are diagnosed without leaking them,
+  and contained links can coexist with their targets under distinct lexical paths.
+
 ## Discoveries and surprises
 
 - **2026-07-16:** The worktree reports branch `main`, not the branch named in the request,
@@ -514,6 +523,10 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
   individual limit → count limit → proposed repository bytes → append/account.
 - **2026-07-16:** The focused M1.1B run passed all 24 reachable scanner tests and skipped
   both symlink tests because Windows denied link creation. Scanner module coverage was 96%.
+- **2026-07-16:** Windows denied all three real-symlink test creations with error 1314.
+  Focused monkeypatch-backed tests cover the same pruning, containment, resolution-failure,
+  and metadata-failure decisions locally; Linux Actions remains responsible for verifying
+  the real directory, escaping-file, and contained-file symlink integrations.
 
 ## Validation transcript
 
@@ -617,6 +630,26 @@ M1.1B validation on 2026-07-16, Python 3.11.15:
 
 GNU Make was not invoked and this record does not claim `make check` ran.
 
+M1.1D local validation on 2026-07-16, Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 39 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 30 passed and 3 real-symlink
+  integrations skipped; scanner module coverage was 97%.
+- `uv run pytest` — exit 0; 53 passed and 3 real-symlink integrations skipped; total
+  coverage was 91%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+
+Windows error 1314 prevented real symlink creation in all three integration tests.
+Platform-independent focused tests passed locally, while Ubuntu Actions must verify the
+real directory, external-file, and contained-file symlink behaviors. GNU Make is
+unavailable, so this record does not claim `make check` ran.
+
 ## Learning checkpoint
 
 The developer must explain in their own words: why discovery returns metadata rather than
@@ -632,7 +665,8 @@ sorting. At each step, state what can fail and whether scanning continues or sto
 
 The contracts-only outcome established the typed scanner boundary and executable expected
 behaviors. M1.1A implements the Phase 1 basic deterministic scan, M1.1C implements root
-`.gitignore`, and M1.1B now enforces all three configured resource limits after ignore and
-`stat()` checks but before result mutation. M1.1 remains incomplete in the local checkout:
-external file-link containment and filesystem diagnostics are still deferred; `index`
-remains unfinished, and extraction/graph work remains out of scope.
+`.gitignore`, M1.1B enforces all three configured resource limits, and M1.1D implements
+directory-link pruning, file-link containment, and focused filesystem diagnostics before
+accounting. Local implementation is complete, while real symlink acceptance remains
+pending on Linux CI. After that check, Milestone 1.2 definition extraction is the next
+slice; `index` remains unfinished and graph work remains out of scope.

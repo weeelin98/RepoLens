@@ -86,6 +86,32 @@ class ScanResult(BaseModel):
     total_bytes: int = Field(default=0, ge=0)
 
 
+def _symlink_target_is_within_repository(path: Path, resolved_root: Path) -> bool:
+    resolved_target = path.resolve(strict=True)
+    try:
+        resolved_target.relative_to(resolved_root)
+    except ValueError:
+        return False
+    return True
+
+
+def _filesystem_diagnostic(relative_path: str, error: OSError) -> ScanDiagnostic:
+    permission_denied = isinstance(error, PermissionError)
+    return ScanDiagnostic(
+        path=relative_path,
+        code=(
+            ScanDiagnosticCode.PERMISSION_DENIED
+            if permission_denied
+            else ScanDiagnosticCode.STAT_FAILED
+        ),
+        message=(
+            "permission denied during filesystem metadata lookup"
+            if permission_denied
+            else "filesystem metadata lookup failed"
+        ),
+    )
+
+
 def scan_repository(
     repository_root: Path,
     config: RuntimeConfig,
@@ -154,7 +180,42 @@ def scan_repository(
             if ignore_spec is not None and ignore_spec.match_file(relative_path):
                 continue
 
-            size_bytes = path.stat().st_size
+            try:
+                is_symlink = path.is_symlink()
+            except PermissionError as error:
+                diagnostics.append(_filesystem_diagnostic(relative_path, error))
+                continue
+            except OSError as error:
+                diagnostics.append(_filesystem_diagnostic(relative_path, error))
+                continue
+
+            if is_symlink:
+                try:
+                    target_is_contained = _symlink_target_is_within_repository(path, resolved_root)
+                except PermissionError as error:
+                    diagnostics.append(_filesystem_diagnostic(relative_path, error))
+                    continue
+                except OSError as error:
+                    diagnostics.append(_filesystem_diagnostic(relative_path, error))
+                    continue
+                if not target_is_contained:
+                    diagnostics.append(
+                        ScanDiagnostic(
+                            path=relative_path,
+                            code=ScanDiagnosticCode.OUTSIDE_REPOSITORY_SYMLINK,
+                            message="file symlink target is outside the repository",
+                        )
+                    )
+                    continue
+
+            try:
+                size_bytes = path.stat().st_size
+            except PermissionError as error:
+                diagnostics.append(_filesystem_diagnostic(relative_path, error))
+                continue
+            except OSError as error:
+                diagnostics.append(_filesystem_diagnostic(relative_path, error))
+                continue
             if size_bytes > config.maximum_file_bytes:
                 diagnostics.append(
                     ScanDiagnostic(
