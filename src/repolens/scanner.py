@@ -1,10 +1,8 @@
-"""Repository discovery contracts for Milestone 1.1.
-
-The developer-owned traversal and resource-limit behavior is intentionally unfinished.
-"""
+"""Repository discovery contracts and basic deterministic traversal."""
 
 from __future__ import annotations
 
+import os
 from enum import StrEnum
 from pathlib import Path, PureWindowsPath
 
@@ -93,6 +91,60 @@ def scan_repository(
     *,
     supported_suffixes: frozenset[str] = DEFAULT_SUPPORTED_SUFFIXES,
 ) -> ScanResult:
-    """Discover bounded source-file metadata without reading or parsing contents."""
+    """Discover source-file metadata without reading or parsing contents."""
 
-    raise NotImplementedError("Milestone 1.1 repository scanner is developer-owned")
+    if not repository_root.exists():
+        diagnostic = ScanDiagnostic(
+            code=ScanDiagnosticCode.REPOSITORY_NOT_FOUND,
+            message="repository root does not exist",
+        )
+        return ScanResult(diagnostics=(diagnostic,))
+
+    if not repository_root.is_dir():
+        diagnostic = ScanDiagnostic(
+            code=ScanDiagnosticCode.REPOSITORY_NOT_DIRECTORY,
+            message="repository root is not a directory",
+        )
+        return ScanResult(diagnostics=(diagnostic,))
+
+    resolved_root = repository_root.resolve()
+    normalized_suffixes = frozenset(
+        suffix.casefold() if suffix.startswith(".") else f".{suffix.casefold()}"
+        for suffix in supported_suffixes
+    )
+    files: list[SourceFile] = []
+    total_bytes = 0
+
+    for current_directory, dirnames, filenames in os.walk(
+        resolved_root,
+        topdown=True,
+        followlinks=False,
+    ):
+        current_path = Path(current_directory)
+        dirnames[:] = sorted(
+            dirname
+            for dirname in dirnames
+            if dirname not in DEFAULT_IGNORED_DIRECTORIES
+            and not (current_path / dirname).is_symlink()
+        )
+
+        for filename in sorted(filenames):
+            path = current_path / filename
+            suffix = path.suffix.casefold()
+            if suffix not in normalized_suffixes:
+                continue
+
+            size_bytes = path.stat().st_size
+            files.append(
+                SourceFile(
+                    relative_path=path.relative_to(resolved_root).as_posix(),
+                    suffix=suffix,
+                    size_bytes=size_bytes,
+                )
+            )
+            total_bytes += size_bytes
+
+    return ScanResult(
+        files=tuple(sorted(files, key=lambda source_file: source_file.relative_path)),
+        total_bytes=total_bytes,
+    )

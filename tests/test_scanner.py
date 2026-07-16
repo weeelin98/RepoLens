@@ -8,8 +8,11 @@ from pydantic import ValidationError
 from repolens.config import RuntimeConfig
 from repolens.scanner import ScanDiagnosticCode, ScanResult, SourceFile, scan_repository
 
-MISSING_SCANNER = pytest.mark.xfail(
-    reason="Milestone 1.1: repository traversal and resource-limit behavior is not implemented",
+MISSING_LATER_SCANNER_BEHAVIOR = pytest.mark.xfail(
+    reason=(
+        "Milestone 1.1: ignore, resource-limit, and external file-symlink behavior "
+        "is not implemented"
+    ),
     strict=True,
 )
 
@@ -29,7 +32,6 @@ def diagnostic_pairs(result: ScanResult) -> tuple[tuple[str | None, ScanDiagnost
     return tuple((diagnostic.path, diagnostic.code) for diagnostic in result.diagnostics)
 
 
-@MISSING_SCANNER
 def test_finds_supported_files_with_normalized_deterministic_paths(tmp_path: Path) -> None:
     write_file(tmp_path, "nested/module.PY")
     write_file(tmp_path, "README.MD")
@@ -45,7 +47,6 @@ def test_finds_supported_files_with_normalized_deterministic_paths(tmp_path: Pat
 
 
 @pytest.mark.parametrize("ignored_directory", [".git", ".venv", "venv", "__pycache__"])
-@MISSING_SCANNER
 def test_prunes_default_ignored_directories(tmp_path: Path, ignored_directory: str) -> None:
     write_file(tmp_path, f"{ignored_directory}/hidden.py")
     write_file(tmp_path, "visible.py")
@@ -55,7 +56,7 @@ def test_prunes_default_ignored_directories(tmp_path: Path, ignored_directory: s
     assert result_paths(result) == ("visible.py",)
 
 
-@MISSING_SCANNER
+@MISSING_LATER_SCANNER_BEHAVIOR
 def test_respects_root_gitignore_and_file_negation(tmp_path: Path) -> None:
     write_file(tmp_path, ".gitignore", "*.py\n!important.py\nignored/\n")
     write_file(tmp_path, "ignored/hidden.md")
@@ -68,7 +69,7 @@ def test_respects_root_gitignore_and_file_negation(tmp_path: Path) -> None:
     assert result_paths(result) == ("guide.md", "important.py")
 
 
-@MISSING_SCANNER
+@MISSING_LATER_SCANNER_BEHAVIOR
 def test_enforces_maximum_file_bytes_and_continues(tmp_path: Path) -> None:
     write_file(tmp_path, "large.py", "1234")
     write_file(tmp_path, "small.py", "12")
@@ -81,7 +82,7 @@ def test_enforces_maximum_file_bytes_and_continues(tmp_path: Path) -> None:
     assert diagnostic_pairs(result) == (("large.py", ScanDiagnosticCode.FILE_TOO_LARGE),)
 
 
-@MISSING_SCANNER
+@MISSING_LATER_SCANNER_BEHAVIOR
 def test_enforces_maximum_file_count_at_first_excluded_file(tmp_path: Path) -> None:
     write_file(tmp_path, "a.py")
     write_file(tmp_path, "b.py")
@@ -93,7 +94,7 @@ def test_enforces_maximum_file_count_at_first_excluded_file(tmp_path: Path) -> N
     assert diagnostic_pairs(result) == (("b.py", ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED),)
 
 
-@MISSING_SCANNER
+@MISSING_LATER_SCANNER_BEHAVIOR
 def test_enforces_maximum_repository_bytes_at_first_excluded_file(tmp_path: Path) -> None:
     write_file(tmp_path, "a.py", "12")
     write_file(tmp_path, "b.py", "34")
@@ -113,7 +114,6 @@ def test_enforces_maximum_repository_bytes_at_first_excluded_file(tmp_path: Path
         ("file", ScanDiagnosticCode.REPOSITORY_NOT_DIRECTORY),
     ],
 )
-@MISSING_SCANNER
 def test_rejects_invalid_repository_roots(
     tmp_path: Path,
     root_kind: str,
@@ -130,7 +130,6 @@ def test_rejects_invalid_repository_roots(
     assert tuple(diagnostic.code for diagnostic in result.diagnostics) == (expected_code,)
 
 
-@MISSING_SCANNER
 def test_scanning_never_executes_python_files(tmp_path: Path) -> None:
     sentinel = tmp_path / "executed.txt"
     write_file(
@@ -145,7 +144,6 @@ def test_scanning_never_executes_python_files(tmp_path: Path) -> None:
     assert not sentinel.exists()
 
 
-@MISSING_SCANNER
 def test_does_not_follow_symlinked_directory(tmp_path: Path) -> None:
     target = tmp_path / "target"
     write_file(target, "nested.py")
@@ -160,7 +158,7 @@ def test_does_not_follow_symlinked_directory(tmp_path: Path) -> None:
     assert result_paths(result) == ("target/nested.py",)
 
 
-@MISSING_SCANNER
+@MISSING_LATER_SCANNER_BEHAVIOR
 def test_excludes_file_symlink_that_escapes_repository(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()
@@ -204,3 +202,13 @@ def test_source_file_contract_normalizes_without_absolute_paths() -> None:
     }
     with pytest.raises(ValidationError, match="repository-relative"):
         SourceFile(relative_path=r"C:\repo\module.py", suffix=".py", size_bytes=4)
+
+
+def test_supported_suffixes_override_is_normalized(tmp_path: Path) -> None:
+    write_file(tmp_path, "notes.TXT", "hello")
+    write_file(tmp_path, "module.py", "ignored")
+
+    result = scan_repository(tmp_path, RuntimeConfig(), supported_suffixes=frozenset({"TXT"}))
+
+    assert result.files == (SourceFile(relative_path="notes.TXT", suffix=".txt", size_bytes=5),)
+    assert result.total_bytes == 5
