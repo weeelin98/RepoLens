@@ -5,7 +5,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-from repolens.extractors.base import ExtractionResult
+from repolens.extractors.base import (
+    ExtractionResult,
+    ImportFactKind,
+    UnresolvedImportFact,
+)
 from repolens.ids import normalize_repo_path, stable_node_id
 from repolens.models import (
     EdgeKind,
@@ -57,6 +61,15 @@ def _definition_span(node: _DefinitionNode) -> SourceSpan:
     )
 
 
+def _import_alias_span(node: ast.alias) -> SourceSpan:
+    return SourceSpan(
+        start_line=node.lineno,
+        end_line=node.end_lineno if node.end_lineno is not None else node.lineno,
+        start_column=node.col_offset,
+        end_column=node.end_col_offset if node.end_col_offset is not None else node.col_offset,
+    )
+
+
 def _node_sort_key(node: GraphNode) -> tuple[object, ...]:
     span = node.span
     return (
@@ -74,6 +87,7 @@ class _DefinitionVisitor(ast.NodeVisitor):
         self._scopes = [module_node]
         self.nodes: list[GraphNode] = [module_node]
         self.edges: list[GraphEdge] = []
+        self.imports: list[UnresolvedImportFact] = []
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         self._visit_definition(node, NodeKind.CLASS)
@@ -83,6 +97,33 @@ class _DefinitionVisitor(ast.NodeVisitor):
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self._visit_function(node)
+
+    def visit_Import(self, node: ast.Import) -> None:
+        for imported_alias in node.names:
+            self.imports.append(
+                UnresolvedImportFact(
+                    kind=ImportFactKind.IMPORT,
+                    module=imported_alias.name,
+                    alias=imported_alias.asname,
+                    source_path=self._source_path,
+                    span=_import_alias_span(imported_alias),
+                )
+            )
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        for imported_alias in node.names:
+            self.imports.append(
+                UnresolvedImportFact(
+                    kind=ImportFactKind.FROM_IMPORT,
+                    module=node.module,
+                    imported_member=imported_alias.name,
+                    alias=imported_alias.asname,
+                    relative_level=node.level,
+                    is_star=imported_alias.name == "*",
+                    source_path=self._source_path,
+                    span=_import_alias_span(imported_alias),
+                )
+            )
 
     def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         kind = NodeKind.METHOD if self._scopes[-1].kind is NodeKind.CLASS else NodeKind.FUNCTION
@@ -165,4 +206,5 @@ class PythonExtractor:
         return ExtractionResult(
             nodes=tuple(sorted(visitor.nodes, key=_node_sort_key)),
             edges=tuple(sorted(visitor.edges, key=GraphEdge.sort_key)),
+            imports=tuple(sorted(visitor.imports, key=UnresolvedImportFact.sort_key)),
         )

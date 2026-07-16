@@ -31,3 +31,14 @@
 5. Why does each definition receive exactly one `contains` edge from its nearest named
    lexical scope?
 6. Why can `ast.parse()` inspect definitions without importing or executing the source?
+
+## Milestone 1.2B — Unresolved Python Import Facts
+
+1. How do `ast.Import` and `ast.ImportFrom` represent different import syntax?
+2. Why does one import statement containing several aliases produce several facts?
+3. How are an imported name and its local alias different?
+4. What does `ImportFrom.level` preserve, and why is it not enough to resolve an absolute
+   module without package context?
+5. Why must a star import remain an explicit unexpanded fact?
+6. Why does AST extraction never execute the imported module?
+7. Why are target nodes and cross-file `imports` edges deferred to a resolver?

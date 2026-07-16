@@ -17,7 +17,11 @@ the next slice is Milestone 1.2A — Basic Python definition extraction.
 
 Milestone 1.2A now provides isolated, standard-library AST extraction for Python modules,
 classes, functions, async functions, methods, nested definitions, stable IDs, source spans,
-and syntax-direct containment. It does not yet extract imports/calls or build `graph.json`.
+and syntax-direct containment. It does not yet extract calls or build `graph.json`.
+
+Milestone 1.2B adds deterministic unresolved Python import facts for direct, from, relative,
+aliased, multi-member, nested, and star imports. These facts preserve syntax only; RepoLens
+still does not resolve targets, create cross-file import edges, or execute imported modules.
 
 ## Development
 

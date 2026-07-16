@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from repolens.extractors import (
     ExtractionResult,
     Extractor,
     ExtractorRegistry,
+    ImportFactKind,
     PythonExtractor,
+    UnresolvedImportFact,
 )
 from repolens.ids import stable_node_id
 from repolens.models import (
@@ -90,6 +95,73 @@ def expected_contains(parent: GraphNode, child: GraphNode) -> GraphEdge:
         source_path=child.source_path,
         span=child.span,
     )
+
+
+def expected_import(
+    kind: ImportFactKind,
+    *,
+    module: str | None,
+    path: str,
+    start_line: int,
+    start_column: int,
+    end_column: int,
+    imported_member: str | None = None,
+    alias: str | None = None,
+    relative_level: int = 0,
+    is_star: bool = False,
+) -> UnresolvedImportFact:
+    return UnresolvedImportFact(
+        kind=kind,
+        module=module,
+        imported_member=imported_member,
+        alias=alias,
+        relative_level=relative_level,
+        is_star=is_star,
+        source_path=path,
+        span=SourceSpan(
+            start_line=start_line,
+            end_line=start_line,
+            start_column=start_column,
+            end_column=end_column,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"module": None},
+        {"imported_member": "name"},
+        {"relative_level": 1},
+        {"is_star": True},
+        {"kind": ImportFactKind.FROM_IMPORT, "imported_member": None},
+        {
+            "kind": ImportFactKind.FROM_IMPORT,
+            "module": None,
+            "imported_member": "name",
+        },
+        {"kind": ImportFactKind.FROM_IMPORT, "imported_member": "*"},
+        {
+            "kind": ImportFactKind.FROM_IMPORT,
+            "imported_member": "*",
+            "is_star": True,
+            "alias": "everything",
+        },
+    ],
+)
+def test_unresolved_import_fact_rejects_inconsistent_forms(
+    overrides: dict[str, Any],
+) -> None:
+    values: dict[str, Any] = {
+        "kind": ImportFactKind.IMPORT,
+        "module": "package",
+        "source_path": "module.py",
+        "span": SourceSpan(start_line=1, end_line=1, start_column=7, end_column=14),
+    }
+    values.update(overrides)
+
+    with pytest.raises(ValidationError):
+        UnresolvedImportFact(**values)
 
 
 def test_python_extractor_declares_only_py_and_matches_protocol() -> None:
@@ -391,3 +463,324 @@ def test_python_extraction_does_not_import_or_execute_source(
     assert tuple(node.kind for node in result.nodes) == (NodeKind.MODULE,)
     assert result.edges == ()
     assert not sentinel.exists()
+
+
+def test_extracts_simple_dotted_aliased_and_multi_alias_imports() -> None:
+    source = (
+        "import os\n"
+        "import package.module\n"
+        "import package.module as alias\n"
+        "import first, second as second_alias\n"
+    )
+    path = "pkg/module.py"
+
+    result = PythonExtractor().extract(Path(path), source)
+
+    assert result.imports == (
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="os",
+            path=path,
+            start_line=1,
+            start_column=7,
+            end_column=9,
+        ),
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="package.module",
+            path=path,
+            start_line=2,
+            start_column=7,
+            end_column=21,
+        ),
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="package.module",
+            alias="alias",
+            path=path,
+            start_line=3,
+            start_column=7,
+            end_column=30,
+        ),
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="first",
+            path=path,
+            start_line=4,
+            start_column=7,
+            end_column=12,
+        ),
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="second",
+            alias="second_alias",
+            path=path,
+            start_line=4,
+            start_column=14,
+            end_column=36,
+        ),
+    )
+
+
+def test_extracts_basic_aliased_and_multi_member_from_imports() -> None:
+    source = (
+        "from package import name\n"
+        "from package import name as alias\n"
+        "from package import first, second\n"
+    )
+    path = "module.py"
+
+    result = PythonExtractor().extract(Path(path), source)
+
+    assert result.imports == (
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="package",
+            imported_member="name",
+            path=path,
+            start_line=1,
+            start_column=20,
+            end_column=24,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="package",
+            imported_member="name",
+            alias="alias",
+            path=path,
+            start_line=2,
+            start_column=20,
+            end_column=33,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="package",
+            imported_member="first",
+            path=path,
+            start_line=3,
+            start_column=20,
+            end_column=25,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="package",
+            imported_member="second",
+            path=path,
+            start_line=3,
+            start_column=27,
+            end_column=33,
+        ),
+    )
+
+
+def test_extracts_relative_and_star_imports_without_resolution() -> None:
+    source = (
+        "from . import local\n"
+        "from .helpers import load\n"
+        "from ..shared import config\n"
+        "from package import *\n"
+    )
+    path = "pkg/module.py"
+
+    result = PythonExtractor().extract(Path(path), source)
+
+    assert result.imports == (
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module=None,
+            imported_member="local",
+            relative_level=1,
+            path=path,
+            start_line=1,
+            start_column=14,
+            end_column=19,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="helpers",
+            imported_member="load",
+            relative_level=1,
+            path=path,
+            start_line=2,
+            start_column=21,
+            end_column=25,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="shared",
+            imported_member="config",
+            relative_level=2,
+            path=path,
+            start_line=3,
+            start_column=21,
+            end_column=27,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="package",
+            imported_member="*",
+            is_star=True,
+            path=path,
+            start_line=4,
+            start_column=20,
+            end_column=21,
+        ),
+    )
+
+
+def test_collects_imports_in_definition_and_control_flow_bodies() -> None:
+    source = (
+        "def load():\n"
+        "    import inside\n"
+        "class Service:\n"
+        "    import class_dep\n"
+        "    def method(self):\n"
+        "        if True:\n"
+        "            import conditional\n"
+        "        try:\n"
+        "            from pkg import member\n"
+        "        except ImportError:\n"
+        "            pass\n"
+    )
+    path = "module.py"
+
+    result = PythonExtractor().extract(Path(path), source)
+
+    assert result.imports == (
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="inside",
+            path=path,
+            start_line=2,
+            start_column=11,
+            end_column=17,
+        ),
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="class_dep",
+            path=path,
+            start_line=4,
+            start_column=11,
+            end_column=20,
+        ),
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="conditional",
+            path=path,
+            start_line=7,
+            start_column=19,
+            end_column=30,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="pkg",
+            imported_member="member",
+            path=path,
+            start_line=9,
+            start_column=28,
+            end_column=34,
+        ),
+    )
+
+
+def test_repeated_imports_remain_separate_and_ordering_is_repeatable() -> None:
+    source = "import os\nimport os\nimport z, a\n"
+    extractor = PythonExtractor()
+
+    first = extractor.extract(Path("module.py"), source)
+    second = extractor.extract(Path("module.py"), source)
+
+    assert first == second
+    assert [
+        (fact.module, fact.span.start_line, fact.span.start_column) for fact in first.imports
+    ] == [
+        ("os", 1, 7),
+        ("os", 2, 7),
+        ("z", 3, 7),
+        ("a", 3, 10),
+    ]
+
+
+def test_import_facts_normalize_relative_posix_source_path() -> None:
+    result = PythonExtractor().extract(Path(r"pkg\module.py"), "import os\n")
+
+    assert result.imports == (
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="os",
+            path="pkg/module.py",
+            start_line=1,
+            start_column=7,
+            end_column=9,
+        ),
+    )
+
+
+def test_import_extraction_does_not_execute_imported_module(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sentinel = tmp_path / "executed.txt"
+    dependency_name = "m1_2b_dangerous_dependency"
+    dependency = tmp_path / f"{dependency_name}.py"
+    dependency.write_text(
+        f"from pathlib import Path\nPath({str(sentinel)!r}).write_text('executed')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(tmp_path)
+    sys.modules.pop(dependency_name, None)
+
+    result = PythonExtractor().extract(Path("module.py"), f"import {dependency_name}\n")
+
+    assert result.imports[0].module == dependency_name
+    assert dependency_name not in sys.modules
+    assert not sentinel.exists()
+
+
+def test_invalid_syntax_still_returns_only_the_existing_diagnostic() -> None:
+    result = PythonExtractor().extract(Path("broken.py"), ")")
+
+    assert result == ExtractionResult(diagnostics=("python_syntax_error:broken.py:1:0",))
+
+
+def test_import_collection_preserves_definition_nodes_and_contains_edges() -> None:
+    source = "import os\n\ndef load():\n    from pkg import member\n    return 1\n"
+    path = "module.py"
+    module = expected_node(
+        NodeKind.MODULE,
+        path=path,
+        qualified_name="module",
+        label="module",
+        span=SourceSpan(start_line=1, end_line=5, start_column=0, end_column=12),
+    )
+    load = expected_node(
+        NodeKind.FUNCTION,
+        path=path,
+        qualified_name="module.load",
+        label="load",
+        span=SourceSpan(start_line=3, end_line=5, start_column=0, end_column=12),
+    )
+
+    result = PythonExtractor().extract(Path(path), source)
+
+    assert result.nodes == (module, load)
+    assert result.edges == (expected_contains(module, load),)
+    assert result.imports == (
+        expected_import(
+            ImportFactKind.IMPORT,
+            module="os",
+            path=path,
+            start_line=1,
+            start_column=7,
+            end_column=9,
+        ),
+        expected_import(
+            ImportFactKind.FROM_IMPORT,
+            module="pkg",
+            imported_member="member",
+            path=path,
+            start_line=4,
+            start_column=20,
+            end_column=26,
+        ),
+    )

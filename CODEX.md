@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.2A basic Python definition extraction implemented
+Status: Milestone 1.2B unresolved Python import fact extraction implemented
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -157,6 +157,8 @@ separate decision.
 
 An extractor declares supported extensions and accepts a normalized source record. It
 returns nodes, direct edges, diagnostics, and unresolved syntax facts without side effects.
+`ExtractionResult.imports` holds immutable unresolved import facts; it never implies a
+resolved target node or graph edge.
 Output order is irrelevant because the graph boundary sorts it. Invalid syntax produces a
 diagnostic and partial results only when correctness can be maintained.
 
@@ -494,6 +496,12 @@ syntax trees and require controlled gold migrations.
 - **2026-07-16 — Python definition spans preserve AST coordinates.** Definition lines and
   columns map directly from `lineno`, `end_lineno`, `col_offset`, and `end_col_offset`.
   Columns therefore remain zero-based UTF-8 byte offsets with an exclusive end.
+- **2026-07-16 — M1.2B keeps import syntax outside the graph.** `UnresolvedImportFact`
+  records direct AST evidence in `ExtractionResult.imports`; an `IMPORTS` edge remains
+  unavailable until a resolver can supply a defensible target node.
+- **2026-07-16 — Import facts use alias-node spans and nullable relative modules.** One
+  `ast.alias` becomes one fact. `from . import local` preserves `module=None` and level 1,
+  while star imports remain explicit and unexpanded.
 
 ## Progress
 
@@ -508,7 +516,7 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next active slice: Milestone 1.2A — Basic Python definition extraction.
+Active slice: Milestone 1.2B — Unresolved Python import fact extraction.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -557,6 +565,42 @@ Next active slice: Milestone 1.2A — Basic Python definition extraction.
   containment, paths, spans, determinism, extensions, invalid syntax, and non-execution.
 - [x] Completed the full M1.2A validation record; the developer learning checkpoint remains
   the handoff question for review.
+
+### Milestone 1.2B — Unresolved Python import fact extraction
+
+- [x] Added the missing generic unresolved-import fact contract and default-empty
+  `ExtractionResult.imports` channel without changing graph models.
+- [x] Collected one fact per `ast.alias` for direct, from, relative, aliased, multi-member,
+  nested, repeated, and star imports.
+- [x] Preserved nullable modules, relative levels, aliases, explicit star state, relative
+  POSIX paths, and alias-level AST spans without resolution or execution.
+- [x] Sorted facts deterministically without deduplication and preserved all M1.2A
+  definition nodes and containment edges.
+- [x] Added manual syntax expectations, contract-invariant tests, non-execution coverage,
+  and the M1.2B learning questions.
+- [x] Completed the full M1.2B validation record; the developer learning checkpoint remains
+  the handoff question for review.
+
+## Milestone 1.2B validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 40 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 40 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 26 source files.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; import-fact contract
+  coverage was 100% and the Python extractor module reported 96% coverage.
+- `uv run pytest` — exit 0; 84 passed and 3 existing real-symlink scanner integrations
+  skipped because Windows returned privilege error 1314; total coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed.
+
+GNU Make was not invoked and this record does not claim `make check` ran. The three skipped
+tests are unchanged M1.1 Windows symlink-privilege limitations, not import extractor skips.
 
 ## Milestone 1.2A validation record
 
@@ -762,6 +806,15 @@ claim `make check` ran.
 - **2026-07-16:** M1.2A focused tests passed all 17 cases and reported 96% coverage for the
   new extractor. The full suite passed 67 tests, retained the 3 existing Windows symlink
   skips, and reported 92% total coverage.
+- **2026-07-16:** The extraction contract promised unresolved syntax facts but had no result
+  field for them. M1.2B added one generic `imports` channel instead of misusing graph edges
+  or creating a Python-only duplicate model.
+- **2026-07-16:** Concurrent focused/full pytest startup contended for `.coverage` on
+  Windows and one process failed with error 32. Sequential reruns passed; final validation
+  therefore ran pytest commands sequentially.
+- **2026-07-16:** M1.2B focused tests passed all 34 cases with 100% import-contract and 96%
+  Python-extractor coverage. The full suite passed 84 tests, retained the 3 existing Windows
+  symlink skips, and reported 92% total coverage.
 
 ## Final portfolio deliverables
 
