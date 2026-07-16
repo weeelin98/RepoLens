@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.1 contracts ready; scanner implementation is developer-owned
+Status: Milestone 1.1A/B/C scanner discovery and resource limits implemented
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -471,6 +471,18 @@ syntax trees and require controlled gold migrations.
 - **2026-07-16 — Expected scanner failures use one result channel.** Invalid roots produce
   empty diagnosed results; per-entry failures produce partial results; aggregate count/byte
   limits stop at the first excluded eligible file.
+- **2026-07-16 — M1.1A stops at basic deterministic scanning.** Root validation, top-down
+  traversal, default and directory-symlink pruning, normalized suffix filtering, relative
+  metadata, and total bytes are implemented. Ignore matching, limits, escaping file-link
+  detection, and broad filesystem recovery remain later M1.1 work.
+- **2026-07-16 — M1.1C uses root-only pathspec matching.** Only the resolved root
+  `.gitignore` is decoded. Pathspec 1.1.1 applies Git-compatible matching and negation to
+  relative POSIX paths; nested ignore files have no rule effect, and ignored files are
+  excluded before `stat()`.
+- **2026-07-16 — M1.1B checks limits before result mutation.** Individual oversize files
+  produce a diagnostic and scanning continues. Accepted-file count and proposed repository
+  bytes are checked before append; their first breach produces one diagnostic and stops the
+  deterministic scan.
 
 ## Progress
 
@@ -497,9 +509,17 @@ Next slice: Milestone 1.1 repository scanning.
   unfinished production behavior remains strict xfail.
 - [x] Kept the existing harness gold unchanged because this slice returns metadata rather
   than graph facts.
-- [ ] Developer: implement root validation, traversal, pruning, normalization, and stat
-  metadata in `scan_repository()`.
-- [ ] Developer: implement root `.gitignore`, symlink safety, and deterministic limits.
+- [x] Implemented root validation, resolved top-down traversal, pre-descent default and
+  directory-symlink pruning, normalized suffix filtering, POSIX metadata, and byte totals.
+- [x] Removed strict xfails only for behavior fully delivered by M1.1A and added an explicit
+  custom `supported_suffixes` test.
+- [x] Implemented root `.gitignore` matching and negation, pre-descent directory pruning,
+  and pre-`stat()` file exclusion; declared pathspec as a direct runtime dependency.
+- [x] Implemented maximum individual file bytes, accepted file count, and accepted
+  repository bytes with exact-boundary acceptance and stable diagnostics.
+- [x] Added explicit tests for boundary equality, excluded-file accounting, deterministic
+  aggregate stops, and root-ignore interaction.
+- [ ] Developer: implement external file-symlink safety and filesystem error diagnostics.
 - [ ] Shared: remove only satisfied xfails and complete the M1.1 learning checkpoint.
 
 ## Milestone 0 validation record
@@ -541,6 +561,77 @@ implements their phases. Windows error 1314 prevented creation of both test syml
 those tests skipped safely. GNU Make was not invoked; this record does not claim
 `make check` ran.
 
+## Milestone 1.1A validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged in the final run.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 11 passed, 4 strict xfailed, and
+  2 symlink tests skipped in 0.24 seconds; scanner module coverage was 91%.
+- `uv run pytest` — exit 0; 34 passed normally, 4 strict xfailed, and 2 symlink tests
+  skipped in 0.31 seconds; total coverage was 90%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+GNU Make was not invoked; this record does not claim `make check` ran. The xfails remain
+for root ignore/negation, all three resource limits, and—on a link-capable platform—the
+escaping file-symlink contract. Windows error 1314 caused both symlink tests to skip before
+their scanner assertions.
+
+## Milestone 1.1C validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv lock --check` — exit 0; 26 packages resolved and the lock was current.
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 16 passed, 3 strict xfailed, and
+  2 symlink tests skipped in 0.24 seconds; scanner module coverage was 93%.
+- `uv run pytest` — exit 0; 39 passed normally, 3 strict xfailed, and 2 symlink tests
+  skipped in 0.33 seconds; total coverage was 90%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+GNU Make was not invoked; this record does not claim `make check` ran. The three resource
+limit tests remain strict xfails in the local checkout. Both symlink tests skipped because
+Windows returned error 1314 before their scanner assertions.
+
+## Milestone 1.1B validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged in the final run.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 24 passed and 2 symlink tests
+  skipped in 0.23 seconds; scanner module coverage was 96%.
+- `uv run pytest` — exit 0; 47 passed normally and 2 symlink tests skipped in 0.33
+  seconds; total coverage was 91%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+GNU Make was not invoked; this record does not claim `make check` ran. Both symlink tests
+skipped because Windows returned error 1314 before their scanner assertions. The escaping
+file-symlink test remains strict xfail on platforms that can create the link.
+
 ## Discovery and surprise log
 
 - **2026-07-14:** The configured workspace path did not yet exist; it was created before
@@ -563,6 +654,22 @@ those tests skipped safely. GNU Make was not invoked; this record does not claim
   `pyproject.toml`; production ignore matching must declare it directly when implemented.
 - **2026-07-16:** Windows denied both test symlink creations with error 1314. The two tests
   skipped safely, while non-symlink behavioral contracts remained strict xfails.
+- **2026-07-16:** At M1.1A start, Git reported the requested
+  `Python-definition-extractor` branch. This differed from the earlier contracts-only
+  observation of `main`; Codex did not create or switch branches.
+- **2026-07-16:** The focused scanner suite passed 11 tests, retained 4 strict xfails for
+  later behavior, and skipped 2 symlink cases because Windows denied link creation. The
+  scanner module reported 91% coverage in the focused run.
+- **2026-07-16:** The M1.1C prompt described M1.1B resource limits as complete, but the local
+  scanner had no enforcement and all three tests remained strict xfails. This slice did not
+  implement or alter limit behavior.
+- **2026-07-16:** Offline lock regeneration failed because metadata for all supported Python
+  splits was not cached. Approved online resolution succeeded. Pathspec 1.1.1 deprecated
+  the old `gitwildmatch` factory name, so RepoLens uses its current `gitignore` factory for
+  the required Git-compatible semantics.
+- **2026-07-16:** M1.1B was implemented after M1.1C in this worktree. The focused resource
+  suite passed all 24 reachable scanner tests, skipped 2 Windows symlink cases, and reported
+  96% scanner coverage.
 
 ## Final portfolio deliverables
 

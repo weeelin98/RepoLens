@@ -38,12 +38,12 @@ Milestone 1.2. The scanner never returns file contents.
 - `src/repolens/cli.py` intentionally fails `index` with a Milestone 1 message.
 - The five harness corpora validate schema/reference integrity only; none is a scanner gold
   corpus.
-- `pyproject.toml` does not declare `pathspec`. `uv.lock` currently contains it only through
-  development tooling, which is not a production dependency guarantee.
+- M1.1C declares `pathspec>=1.1,<2` directly in `pyproject.toml`; `uv.lock` resolves
+  pathspec 1.1.1 for root ignore matching.
 - Before this slice there was no `src/repolens/scanner.py` or `tests/test_scanner.py`.
-- On 2026-07-16, `git branch --show-current` reported `main`, although the initiating request
-  named `Python-definition-extractor`. No other local branch exists. Work stays on the
-  actual current branch rather than silently creating or switching one.
+- At the start of M1.1A on 2026-07-16, `git branch --show-current` reported
+  `Python-definition-extractor`, matching the implementation request. An earlier
+  contracts-only session had reported `main`; no branch was created or switched by Codex.
 
 ## Acceptance criteria
 
@@ -80,19 +80,21 @@ developer-owned placeholder. Create `tests/test_scanner.py` with hand-written ex
 paths and diagnostics under strict M1.1 xfails. Do not implement traversal. Validate all
 existing behavior and record exact results here and in `CODEX.md`.
 
-### Phase 1 — Root, suffix, and deterministic walk (developer-owned)
+### Phase 1 — Root, suffix, and deterministic walk (M1.1A, complete)
 
 Implement the public function in `src/repolens/scanner.py`. Validate and resolve the root
 internally, walk top-down with `os.walk(..., followlinks=False)`, sort names, prune the four
 default directories, accept case-folded `.py`/`.md`, and return relative POSIX metadata.
-Make only the discovery/path/default-ignore tests pass; leave later xfails intact.
+Make only the discovery/path/default-ignore tests pass; leave later xfails intact. This
+phase was implemented as the explicitly authorized M1.1A slice on 2026-07-16.
 
-### Phase 2 — Root `.gitignore` (developer-owned)
+### Phase 2 — Root `.gitignore` (M1.1C, complete)
 
-Declare `pathspec>=0.12,<1` as a direct runtime dependency in `pyproject.toml`, update
-`uv.lock`, compile only the root `.gitignore` with Git wildmatch semantics, and apply it to
-repository-relative POSIX paths. Preserve negation and prune ignored directories when Git
-semantics permit pruning. Make only the root-ignore/negation test pass.
+Declare `pathspec>=1.1,<2` as a direct runtime dependency in `pyproject.toml`, update
+`uv.lock`, compile only the root `.gitignore` with pathspec's current `gitignore` pattern
+factory and Git wildmatch semantics, and apply it to repository-relative POSIX paths.
+Preserve negation and prune ignored directories when Git semantics permit pruning. This
+phase was implemented as the explicitly authorized M1.1C slice on 2026-07-16.
 
 ### Phase 3 — Symlinks and filesystem failures (developer-owned)
 
@@ -101,12 +103,12 @@ collect size with `Path.stat()` before inclusion. Convert expected permission/st
 to stable diagnostics without embedding OS-specific exception text. Make symlink and
 filesystem-failure tests pass, with safe platform skips where link creation is unavailable.
 
-### Phase 4 — Resource limits (developer-owned)
+### Phase 4 — Resource limits (M1.1B, complete)
 
 Apply per-file, accepted-file-count, and accepted-byte limits in deterministic encounter
 order. Continue after per-file oversize; stop with a single diagnostic at the first
-count/aggregate breach. Sort public collections before returning. Make the limit and repeat
-scan tests pass.
+count/aggregate breach. Sort public collections before returning. M1.1B implemented this
+phase on 2026-07-16 without changing the existing root ignore behavior.
 
 ### Phase 5 — Integration review (shared)
 
@@ -201,8 +203,8 @@ the directory path is also re-included, so an actually excluded directory may be
 
 Nested `.gitignore` files are not loaded and have no matching effect in M1.1. Full stacked
 per-directory Git semantics require separate acceptance tests and are deferred rather than
-partially emulated. Because `pathspec` is currently only transitive in `uv.lock`, add it as
-a direct runtime dependency in Phase 2, not during this contracts-only phase.
+partially emulated. Root `.gitignore` symlinks are not read, avoiding a control-file read
+outside the repository boundary.
 
 ### Repository-root validation
 
@@ -306,14 +308,16 @@ output. The contracts cover:
 2. repository-relative POSIX paths, lowercase suffix metadata, stable sorting, repeat scan;
 3. each of `.git`, `.venv`, `venv`, and `__pycache__` as a pruned directory;
 4. root ignore patterns, ignored directory, and `!important.py` negation;
-5. oversized-file skip/continue and accepted-byte total;
-6. deterministic first-excluded file-count behavior;
-7. deterministic first-excluded repository-byte behavior;
-8. missing root and regular-file root rejection codes;
-9. a Python file with a visible side effect that must never execute;
-10. non-traversal of a directory symlink;
-11. rejection and stable diagnostic for an escaping file symlink; and
-12. the exact stable diagnostic-code vocabulary.
+5. missing root ignore behavior, nested ignore non-application, pre-`stat()` file exclusion,
+   and pre-descent ignored-directory pruning;
+6. oversized-file skip/continue and accepted-byte total;
+7. deterministic first-excluded file-count behavior;
+8. deterministic first-excluded repository-byte behavior;
+9. missing root and regular-file root rejection codes;
+10. a Python file with a visible side effect that must never execute;
+11. non-traversal of a directory symlink;
+12. rejection and stable diagnostic for an escaping file symlink; and
+13. the exact stable diagnostic-code vocabulary.
 
 Permission and generic stat failure will be added in the developer implementation phase
 using focused monkeypatching, because making real permissions fail is unreliable on Windows.
@@ -431,10 +435,17 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
 - [x] 2026-07-16: Finalized public contracts and explicit scanning semantics.
 - [x] 2026-07-16: Added the placeholder models/API and hand-written strict-xfail tests.
 - [x] 2026-07-16: Ran and recorded the full contracts-only validation set.
-- [ ] Developer: implement Phase 1 core traversal and remove only matching xfails.
-- [ ] Developer: implement root ignore semantics and declare `pathspec` directly.
+- [x] 2026-07-16: Implemented M1.1A root validation, deterministic traversal, default and
+  directory-symlink pruning, suffix filtering, relative metadata, and byte totals.
+- [x] 2026-07-16: Removed xfails only from behavior fully delivered by M1.1A and added a
+  focused `supported_suffixes` override test.
+- [x] 2026-07-16: Implemented M1.1C root-only Git ignore matching, negation, ignored-directory
+  pruning, and pre-`stat()` ignored-file exclusion with pathspec 1.1.1.
 - [ ] Developer: implement symlink/filesystem diagnostics.
-- [ ] Developer: implement deterministic resource-limit handling.
+- [x] 2026-07-16: Implemented M1.1B deterministic individual-file, accepted-file-count,
+  and accepted-repository-byte limits with stable diagnostics and aggregate stop behavior.
+- [x] 2026-07-16: Added exact-boundary, ignored/unsupported accounting, rejected-total,
+  first-excluded, single-diagnostic, and repeat-scan resource tests.
 - [ ] Shared: complete M1.1 integration review and learning checkpoint.
 
 ## Decisions
@@ -450,9 +461,10 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
 - **2026-07-16 — Root `.gitignore` only.** Alternative: stacked nested rules. Rationale:
   nested Git semantics materially complicate pruning and have no requested behavioral test
   in this slice. Consequence: nested control is explicitly deferred, not approximated.
-- **2026-07-16 — Use `pathspec` when ignore behavior begins.** Alternative: custom matching.
-  Rationale: Git wildmatch and negation are subtle. Consequence: it must become a direct
-  runtime dependency in Phase 2; its current transitive lock presence is insufficient.
+- **2026-07-16 — Use pathspec 1.1 for root ignore behavior.** Alternative: custom matching.
+  Rationale: Git wildmatch and negation are subtle, and pathspec 1.1.1 was already resolved
+  in the lock. Consequence: `pathspec>=1.1,<2` is now a direct runtime dependency and the
+  non-deprecated `gitignore` pattern factory is used.
 - **2026-07-16 — Include safe file symlinks by lexical link path.** Alternative: exclude all
   links. Rationale: the security boundary only requires excluding escapes, while a safe
   link is a legitimate repository entry. Consequence: duplicate target content under
@@ -461,6 +473,15 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
   continue searching for smaller later files. Rationale: a deterministic accepted prefix
   is simpler to explain and makes reaching a global bound explicit. Consequence: exactly
   one aggregate-limit diagnostic names the stopping candidate.
+- **2026-07-16 — M1.1A implements only the basic scan prefix.** Alternative: satisfy every
+  existing scanner xfail at once. Rationale: the implementation request explicitly reserves
+  ignore matching, limits, file-symlink containment, and filesystem recovery for later
+  phases. Consequence: those strict xfails remain executable scope markers.
+- **2026-07-16 — Resource checks precede mutation.** Alternative: append then roll back on a
+  limit breach. Rationale: checking individual size, accepted count, and proposed bytes
+  before `SourceFile` construction makes rejected files structurally unable to affect count
+  or totals. Consequence: individual oversize continues, while aggregate limits add one
+  diagnostic and stop the deterministic walk.
 
 ## Discoveries and surprises
 
@@ -473,6 +494,26 @@ Do not add `.gitignore` or limits until those basic tests and Milestone 0 tests 
 - **2026-07-16:** Existing harness gold describes future graph facts, not scanner output.
   Temporary unit trees are the focused contract vehicle; changing gold now would broaden
   scope.
+- **2026-07-16:** At M1.1A start, the active branch was `Python-definition-extractor`, even
+  though the earlier contracts-only session had observed `main`. Codex did not perform a
+  branch operation in either session.
+- **2026-07-16:** The focused M1.1A scanner run passed 11 tests, kept 4 later behaviors as
+  strict xfails, and skipped 2 symlink tests because Windows denied link creation. Scanner
+  module coverage was 91% in that focused run.
+- **2026-07-16:** The M1.1C prompt stated M1.1B limits were complete, but the local scanner
+  contained no limit enforcement and all three limit tests remained strict xfails. M1.1C
+  preserved that local state rather than broadening scope into limits.
+- **2026-07-16:** `uv lock --offline` could not resolve uncached metadata for every supported
+  Python split. An approved online `uv lock` completed, changing only lock revision and the
+  direct RepoLens pathspec dependency records.
+- **2026-07-16:** Pathspec 1.1.1 warns that the legacy `gitwildmatch` factory name is
+  deprecated. The current `gitignore` factory provides the required Git ignore/wildmatch
+  semantics without warnings.
+- **2026-07-16:** M1.1B was implemented after M1.1C in this worktree. The label order differs
+  from execution chronology, but the scanner flow remains suffix → root ignore → stat →
+  individual limit → count limit → proposed repository bytes → append/account.
+- **2026-07-16:** The focused M1.1B run passed all 24 reachable scanner tests and skipped
+  both symlink tests because Windows denied link creation. Scanner module coverage was 96%.
 
 ## Validation transcript
 
@@ -512,6 +553,70 @@ skipped before reaching the placeholder because Windows returned error 1314 when
 links; on a link-capable host they remain strict xfails until implementation. GNU Make was
 not invoked and this record does not claim `make check` ran.
 
+M1.1A validation on 2026-07-16, Python 3.11.15:
+
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged in the final run.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 11 passed, 4 strict xfailed, and
+  2 symlink tests skipped in 0.24 seconds; scanner module coverage was 91%.
+- `uv run pytest` — exit 0; 34 passed normally, 4 strict xfailed, and 2 symlink tests
+  skipped in 0.31 seconds; total coverage was 90%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+- `git status --short` — five intended files modified: this plan, `CODEX.md`, `README.md`,
+  `src/repolens/scanner.py`, and `tests/test_scanner.py`.
+
+GNU Make was not invoked and this record does not claim `make check` ran.
+
+M1.1C validation on 2026-07-16, Python 3.11.15:
+
+- `uv lock --check` — exit 0; 26 packages resolved and the lock was current.
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 16 passed, 3 strict xfailed, and
+  2 symlink tests skipped in 0.24 seconds; scanner module coverage was 93%.
+- `uv run pytest` — exit 0; 39 passed normally, 3 strict xfailed, and 2 symlink tests
+  skipped in 0.33 seconds; total coverage was 90%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+- `git status --short` — seven intended files modified: this plan, `CODEX.md`, `README.md`,
+  `pyproject.toml`, `src/repolens/scanner.py`, `tests/test_scanner.py`, and `uv.lock`.
+
+GNU Make was not invoked and this record does not claim `make check` ran.
+
+M1.1B validation on 2026-07-16, Python 3.11.15:
+
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged in the final run.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 24 passed and 2 symlink tests
+  skipped in 0.23 seconds; scanner module coverage was 96%.
+- `uv run pytest` — exit 0; 47 passed normally and 2 symlink tests skipped in 0.33
+  seconds; total coverage was 91%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+- `git status --short` — five intended files modified: this plan, `CODEX.md`, `README.md`,
+  `src/repolens/scanner.py`, and `tests/test_scanner.py`.
+
+GNU Make was not invoked and this record does not claim `make check` ran.
+
 ## Learning checkpoint
 
 The developer must explain in their own words: why discovery returns metadata rather than
@@ -525,7 +630,9 @@ sorting. At each step, state what can fail and whether scanning continues or sto
 
 ## Outcome and follow-ups
 
-The contracts-only outcome is a documented, typed scanner boundary and an executable set
-of strict expected behaviors, with no production scanning behavior. The next action belongs
-to the developer: complete Phase 1 in the exact public function above. M1.1 is not complete,
-`index` remains unfinished, and extraction/graph work remains out of scope.
+The contracts-only outcome established the typed scanner boundary and executable expected
+behaviors. M1.1A implements the Phase 1 basic deterministic scan, M1.1C implements root
+`.gitignore`, and M1.1B now enforces all three configured resource limits after ignore and
+`stat()` checks but before result mutation. M1.1 remains incomplete in the local checkout:
+external file-link containment and filesystem diagnostics are still deferred; `index`
+remains unfinished, and extraction/graph work remains out of scope.

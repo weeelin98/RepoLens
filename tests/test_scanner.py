@@ -10,8 +10,8 @@ from pydantic import ValidationError
 from repolens.config import RuntimeConfig
 from repolens.scanner import ScanDiagnosticCode, ScanResult, SourceFile, scan_repository
 
-MISSING_LATER_SCANNER_BEHAVIOR = pytest.mark.xfail(
-    reason=("Milestone 1.1: resource-limit and external file-symlink behavior is not implemented"),
+MISSING_EXTERNAL_FILE_SYMLINK_BEHAVIOR = pytest.mark.xfail(
+    reason="Milestone 1.1: external file-symlink behavior is not implemented",
     strict=True,
 )
 
@@ -141,7 +141,6 @@ def test_ignored_directory_is_pruned_before_descent(
     assert result_paths(result) == ("visible/kept.py",)
 
 
-@MISSING_LATER_SCANNER_BEHAVIOR
 def test_enforces_maximum_file_bytes_and_continues(tmp_path: Path) -> None:
     write_file(tmp_path, "large.py", "1234")
     write_file(tmp_path, "small.py", "12")
@@ -154,7 +153,6 @@ def test_enforces_maximum_file_bytes_and_continues(tmp_path: Path) -> None:
     assert diagnostic_pairs(result) == (("large.py", ScanDiagnosticCode.FILE_TOO_LARGE),)
 
 
-@MISSING_LATER_SCANNER_BEHAVIOR
 def test_enforces_maximum_file_count_at_first_excluded_file(tmp_path: Path) -> None:
     write_file(tmp_path, "a.py")
     write_file(tmp_path, "b.py")
@@ -166,7 +164,6 @@ def test_enforces_maximum_file_count_at_first_excluded_file(tmp_path: Path) -> N
     assert diagnostic_pairs(result) == (("b.py", ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED),)
 
 
-@MISSING_LATER_SCANNER_BEHAVIOR
 def test_enforces_maximum_repository_bytes_at_first_excluded_file(tmp_path: Path) -> None:
     write_file(tmp_path, "a.py", "12")
     write_file(tmp_path, "b.py", "34")
@@ -177,6 +174,62 @@ def test_enforces_maximum_repository_bytes_at_first_excluded_file(tmp_path: Path
     assert result_paths(result) == ("a.py",)
     assert result.total_bytes == 2
     assert diagnostic_pairs(result) == (("b.py", ScanDiagnosticCode.REPOSITORY_SIZE_LIMIT_REACHED),)
+
+
+def test_accepts_file_at_exact_individual_byte_limit(tmp_path: Path) -> None:
+    write_file(tmp_path, "exact.py", "123")
+
+    result = scan_repository(tmp_path, RuntimeConfig(maximum_file_bytes=3))
+
+    assert result_paths(result) == ("exact.py",)
+    assert result.total_bytes == 3
+    assert result.diagnostics == ()
+
+
+def test_accepts_proposed_total_at_exact_repository_byte_limit(tmp_path: Path) -> None:
+    write_file(tmp_path, "a.py", "12")
+    write_file(tmp_path, "b.py", "34")
+
+    result = scan_repository(tmp_path, RuntimeConfig(maximum_repository_bytes=4))
+
+    assert result_paths(result) == ("a.py", "b.py")
+    assert result.total_bytes == 4
+    assert result.diagnostics == ()
+
+
+def test_gitignored_file_does_not_consume_file_count(tmp_path: Path) -> None:
+    write_file(tmp_path, ".gitignore", "ignored.py\n")
+    write_file(tmp_path, "ignored.py")
+    write_file(tmp_path, "kept.py")
+
+    result = scan_repository(tmp_path, RuntimeConfig(maximum_file_count=1))
+
+    assert result_paths(result) == ("kept.py",)
+    assert result.diagnostics == ()
+
+
+def test_unsupported_file_does_not_consume_file_count(tmp_path: Path) -> None:
+    write_file(tmp_path, "a.txt")
+    write_file(tmp_path, "b.py")
+
+    result = scan_repository(tmp_path, RuntimeConfig(maximum_file_count=1))
+
+    assert result_paths(result) == ("b.py",)
+    assert result.diagnostics == ()
+
+
+def test_restrictive_limit_results_are_repeatable(tmp_path: Path) -> None:
+    write_file(tmp_path, "a.py")
+    write_file(tmp_path, "b.py")
+    write_file(tmp_path, "c.py")
+    config = RuntimeConfig(maximum_file_count=1)
+
+    first = scan_repository(tmp_path, config)
+    second = scan_repository(tmp_path, config)
+
+    assert first == second
+    assert result_paths(first) == ("a.py",)
+    assert diagnostic_pairs(first) == (("b.py", ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED),)
 
 
 @pytest.mark.parametrize(
@@ -230,7 +283,7 @@ def test_does_not_follow_symlinked_directory(tmp_path: Path) -> None:
     assert result_paths(result) == ("target/nested.py",)
 
 
-@MISSING_LATER_SCANNER_BEHAVIOR
+@MISSING_EXTERNAL_FILE_SYMLINK_BEHAVIOR
 def test_excludes_file_symlink_that_escapes_repository(tmp_path: Path) -> None:
     repository = tmp_path / "repository"
     repository.mkdir()

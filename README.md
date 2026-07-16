@@ -8,9 +8,10 @@ foundations, deterministic stable IDs/serialization, extractor interfaces, evalu
 metrics and schemas, five synthetic fixture corpora, a smoke validator, and a CLI scaffold.
 It does not yet parse a repository.
 
-Milestone 1.1 repository scanning is active. Its typed contracts and strict behavioral
-expectations are defined in `.agent/plans/m1-1-repository-scanner.md`; the developer owns
-the still-unimplemented traversal and resource-limit logic.
+Milestone 1.1 repository scanning is active. M1.1A implements deterministic basic discovery
+and metadata collection, M1.1C adds repository-root `.gitignore` matching, and M1.1B
+enforces configured file/count/repository resource limits. External file-symlink safety and
+broader filesystem diagnostics remain planned in `.agent/plans/m1-1-repository-scanner.md`.
 
 ## Development
 

@@ -123,7 +123,9 @@ def scan_repository(
         for suffix in supported_suffixes
     )
     files: list[SourceFile] = []
+    diagnostics: list[ScanDiagnostic] = []
     total_bytes = 0
+    stop_scanning = False
 
     for current_directory, dirnames, filenames in os.walk(
         resolved_root,
@@ -153,6 +155,39 @@ def scan_repository(
                 continue
 
             size_bytes = path.stat().st_size
+            if size_bytes > config.maximum_file_bytes:
+                diagnostics.append(
+                    ScanDiagnostic(
+                        path=relative_path,
+                        code=ScanDiagnosticCode.FILE_TOO_LARGE,
+                        message="file exceeds maximum_file_bytes",
+                    )
+                )
+                continue
+
+            if len(files) >= config.maximum_file_count:
+                diagnostics.append(
+                    ScanDiagnostic(
+                        path=relative_path,
+                        code=ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED,
+                        message="maximum_file_count reached",
+                    )
+                )
+                stop_scanning = True
+                break
+
+            proposed_total = total_bytes + size_bytes
+            if proposed_total > config.maximum_repository_bytes:
+                diagnostics.append(
+                    ScanDiagnostic(
+                        path=relative_path,
+                        code=ScanDiagnosticCode.REPOSITORY_SIZE_LIMIT_REACHED,
+                        message="maximum_repository_bytes reached",
+                    )
+                )
+                stop_scanning = True
+                break
+
             files.append(
                 SourceFile(
                     relative_path=relative_path,
@@ -160,9 +195,22 @@ def scan_repository(
                     size_bytes=size_bytes,
                 )
             )
-            total_bytes += size_bytes
+            total_bytes = proposed_total
+
+        if stop_scanning:
+            break
 
     return ScanResult(
         files=tuple(sorted(files, key=lambda source_file: source_file.relative_path)),
+        diagnostics=tuple(
+            sorted(
+                diagnostics,
+                key=lambda diagnostic: (
+                    diagnostic.path or "",
+                    diagnostic.code.value,
+                    diagnostic.message,
+                ),
+            )
+        ),
         total_bytes=total_bytes,
     )
