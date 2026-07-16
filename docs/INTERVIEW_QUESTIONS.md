@@ -18,3 +18,16 @@
 5. Why does an oversized individual file allow scanning to continue while an aggregate
    limit stops the scan?
 6. What makes nested `.gitignore` support more complex than loading only the root file?
+
+## Milestone 1.2A — Basic Python Definition Extraction
+
+1. How does a repository-relative Python path become a module qualified name, and why is
+   root `__init__.py` represented explicitly rather than guessed from a repository name?
+2. How does the lexical scope stack distinguish a direct class method from a function
+   nested inside that method?
+3. Why do stable definition IDs include the qualified name and declaration start line?
+4. How do Python AST line and column coordinates map into `SourceSpan`, including the
+   exclusive end-column convention?
+5. Why does each definition receive exactly one `contains` edge from its nearest named
+   lexical scope?
+6. Why can `ast.parse()` inspect definitions without importing or executing the source?

@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.1 Repository Scanner complete; Milestone 1.2A is next
+Status: Milestone 1.2A basic Python definition extraction implemented
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -488,6 +488,12 @@ syntax trees and require controlled gold migrations.
   targets are resolved strictly and checked with `Path.relative_to`; accepted files retain
   the repository-relative lexical link path. Expected metadata `PermissionError` and
   `OSError` states become stable diagnostics without exception or absolute-target text.
+- **2026-07-16 — M1.2A uses nearest lexical definition scope.** A direct class-scope
+  function is a method; a function nested inside that method is a function. Qualified names
+  preserve every enclosing definition and drive the existing stable-ID function.
+- **2026-07-16 — Python definition spans preserve AST coordinates.** Definition lines and
+  columns map directly from `lineno`, `end_lineno`, `col_offset`, and `end_col_offset`.
+  Columns therefore remain zero-based UTF-8 byte offsets with an exclusive end.
 
 ## Progress
 
@@ -535,6 +541,43 @@ Next active slice: Milestone 1.2A — Basic Python definition extraction.
   and contained-file symlink integrations skipped by the local Windows environment.
 - [x] Closed Milestone 1.1 documentation and handed off to M1.2A without marking all of
   Milestone 1 complete.
+
+### Milestone 1.2A — Basic Python definition extraction
+
+- [x] Added a stateless `.py` extractor compatible with the existing `Extractor` protocol
+  and `ExtractionResult` contract.
+- [x] Derived deterministic module names for ordinary modules, package `__init__.py`, and
+  root `__init__.py` without repository-name inference.
+- [x] Extracted module, class, function, async-function, method, and nested-definition nodes
+  with qualified names, AST spans, and existing stable IDs.
+- [x] Added only nearest-parent syntax-direct `contains` edges; imports, calls, inheritance,
+  graph building, and orchestration remain deferred.
+- [x] Added deterministic syntax-error diagnostics with no partial AST facts.
+- [x] Added manually authored tests for naming, classification, nesting, identities,
+  containment, paths, spans, determinism, extensions, invalid syntax, and non-execution.
+- [x] Completed the full M1.2A validation record; the developer learning checkpoint remains
+  the handoff question for review.
+
+## Milestone 1.2A validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 40 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 40 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 26 source files.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 17 passed; the Python extractor
+  module reported 96% coverage.
+- `uv run pytest` — exit 0; 67 passed and 3 existing real-symlink scanner integrations
+  skipped because Windows returned privilege error 1314; total coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed.
+
+GNU Make was not invoked and this record does not claim `make check` ran. The three skipped
+tests are unchanged M1.1 Windows symlink-privilege limitations, not Python extractor skips.
 
 ## Milestone 0 validation record
 
@@ -713,6 +756,12 @@ claim `make check` ran.
   and external containment, broken-link resolution, permission failures, and ordinary
   metadata failures locally. Linux GitHub Actions later passed after push and verified the
   real filesystem integrations.
+- **2026-07-16:** The `python_service` harness gold contains future readable IDs plus
+  call/test resolver edges. M1.2A leaves it unchanged because isolated definition extraction
+  neither assembles snapshots nor resolves relationships; harness validation still passes.
+- **2026-07-16:** M1.2A focused tests passed all 17 cases and reported 96% coverage for the
+  new extractor. The full suite passed 67 tests, retained the 3 existing Windows symlink
+  skips, and reported 92% total coverage.
 
 ## Final portfolio deliverables
 

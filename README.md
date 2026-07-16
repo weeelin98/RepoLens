@@ -15,6 +15,10 @@ tests because symlink creation returned privilege error 1314; Linux GitHub Actio
 after push and verified those real symlink integrations. Milestone 1 remains active, and
 the next slice is Milestone 1.2A — Basic Python definition extraction.
 
+Milestone 1.2A now provides isolated, standard-library AST extraction for Python modules,
+classes, functions, async functions, methods, nested definitions, stable IDs, source spans,
+and syntax-direct containment. It does not yet extract imports/calls or build `graph.json`.
+
 ## Development
 
 Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
