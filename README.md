@@ -12,8 +12,8 @@ Milestone 1.1 Repository Scanner is complete: M1.1A deterministic discovery, M1.
 limits, M1.1C repository-root `.gitignore` support, and M1.1D symlink containment and
 focused filesystem diagnostics all pass local validation. Windows skipped three real-link
 tests because symlink creation returned privilege error 1314; Linux GitHub Actions passed
-after push and verified those real symlink integrations. Milestone 1 remains active, and
-the next slice is Milestone 1.2A — Basic Python definition extraction.
+after push and verified those real symlink integrations. That completed scanner slice then
+handed off to the Python extraction work described below.
 
 Milestone 1.2A now provides isolated, standard-library AST extraction for Python modules,
 classes, functions, async functions, methods, nested definitions, stable IDs, source spans,
@@ -22,6 +22,13 @@ and syntax-direct containment. It does not yet extract calls or build `graph.jso
 Milestone 1.2B adds deterministic unresolved Python import facts for direct, from, relative,
 aliased, multi-member, nested, and star imports. These facts preserve syntax only; RepoLens
 still does not resolve targets, create cross-file import edges, or execute imported modules.
+
+Milestone 1.3A now connects scanning and Python extraction into a deterministic in-memory
+repository index. It creates repository/directory/file/module/symbol nodes, syntax-direct
+containment, unresolved import facts, and separate scanner/extractor diagnostics while
+respecting ignore, resource, encoding, and symlink boundaries. It does not write output or
+resolve imports. Milestone 1 remains active; the next slice is Milestone 1.3B — CLI index
+command and deterministic `graph.json` output.
 
 ## Development
 

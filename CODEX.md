@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.2B unresolved Python import fact extraction implemented
+Status: Milestone 1.3A in-memory repository graph assembly implemented
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -102,6 +102,7 @@ MCP adapters. Fixtures can be schema-validated before production extractors exis
 - `models` and `ids`: graph contract, normalization, stable IDs, canonical serialization.
 - `scanner`: discovery only; it does not parse content.
 - `extractors`: syntax/metadata facts and direct evidence; no graph traversal.
+- `indexer`: scanner/extractor orchestration and deterministic in-memory graph assembly.
 - `resolvers`: cross-file candidates, ambiguity, confidence, and resolver notes.
 - `graph`: assembly, invariants, deterministic export, traversal primitives.
 - `context`: ranking, budgeting, overview and scoped Markdown rendering.
@@ -167,6 +168,28 @@ JS/TS/JSX/TSX later use pinned compatible tree-sitter grammars. Markdown determi
 extracts headings, hierarchy, links, fenced blocks, and inline-code references. Metadata
 extractors parse only documented structural fields. The MVP never asks an LLM to invent an
 edge.
+
+## Repository indexing contract
+
+`index_repository(root, config, registry=None)` is the M1.3A in-memory orchestration
+boundary. It scans accepted files, creates one repository node plus only the directory and
+file nodes required by those files, safely loads registry-supported source, merges direct
+extractor facts, and returns `RepositoryIndexResult`. The result keeps a validated
+`GraphSnapshot`, unresolved import facts, typed scanner diagnostics, and extractor/source
+loading diagnostic strings as separate channels.
+
+The repository node uses the portable `<repository>` sentinel and represents the root; no
+second root-directory node exists. Directory/file identity uses only repository-relative
+POSIX paths. New structural containment is repository-to-directory/file,
+directory-to-directory/file, and Python-file-to-module. All such edges are syntax-direct
+with confidence 1.0. Extractor module/symbol containment is retained unchanged.
+
+The default registry is fresh per call and contains only `PythonExtractor`; an injected
+registry is authoritative. Files without an extractor remain structural nodes and are not
+read. Python source uses `tokenize.open()` so encoding cookies are honored, with strict
+post-scan containment revalidation. Expected read/decode failures preserve the file node,
+emit a deterministic relative-path diagnostic, and do not block later files. This API does
+not write `graph.json`, resolve imports, or execute/import target code.
 
 ## Resolver contracts
 
@@ -502,6 +525,15 @@ syntax trees and require controlled gold migrations.
 - **2026-07-16 — Import facts use alias-node spans and nullable relative modules.** One
   `ast.alias` becomes one fact. `from . import local` preserves `module=None` and level 1,
   while star imports remain explicit and unexpanded.
+- **2026-07-16 — M1.3A wraps the existing validated graph.** `RepositoryIndexResult` keeps
+  `GraphSnapshot` intact and adds unresolved imports plus scanner and extractor diagnostic
+  channels rather than widening graph models with non-graph facts.
+- **2026-07-16 — Structural roots and IDs remain portable.** One `<repository>` node
+  represents the root; directory and file nodes use relative POSIX paths, and no absolute
+  repository path participates in graph identity or serialized models.
+- **2026-07-16 — Registry selection precedes source loading.** The default registry contains
+  Python only, an injected registry is not mutated, and files with no extractor are never
+  decoded. Python reads use `tokenize.open()` plus a repeated containment check.
 
 ## Progress
 
@@ -516,7 +548,8 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Active slice: Milestone 1.2B — Unresolved Python import fact extraction.
+Next active slice: Milestone 1.3B — CLI index command and deterministic `graph.json`
+output. Milestone 1 remains active.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -580,6 +613,50 @@ Active slice: Milestone 1.2B — Unresolved Python import fact extraction.
   and the M1.2B learning questions.
 - [x] Completed the full M1.2B validation record; the developer learning checkpoint remains
   the handoff question for review.
+
+### Milestone 1.3A — In-memory repository graph assembly
+
+- [x] Added a frozen top-level result containing a validated graph, unresolved imports,
+  scanner diagnostics, and extractor/source-loading diagnostics.
+- [x] Added deterministic repository, accepted-directory, and accepted-file nodes with
+  portable stable IDs and syntax-direct structural containment.
+- [x] Connected scanning to a fresh default Python registry, Python-aware source loading,
+  extractor merging, and file-to-module containment without writing artifacts.
+- [x] Preserved ignored/limited-file exclusion, unresolved import facts, invalid-source
+  partial results, and focused read failures without blocking later files.
+- [x] Added 21 focused tests covering all requested hierarchy, merge, diagnostics,
+  determinism, integrity, encoding, limit, ignore, and non-execution behaviors.
+- [x] Completed the full M1.3A validation record; the developer learning checkpoint remains
+  the handoff question for review.
+
+## Milestone 1.3A validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 42 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 42 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 28 source files.
+- `uv run pytest tests/test_indexer.py -v` — exit 0; 21 passed; the indexer module
+  reported 92% coverage.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; the import contract
+  reported 100% coverage and the Python extractor reported 96% coverage.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 30 passed and 3 existing real-symlink
+  integrations skipped because Windows returned privilege error 1314; scanner coverage was
+  97%.
+- `uv run pytest` — exit 0; 105 passed and the same 3 scanner integrations skipped; total
+  coverage was 92% and indexer coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed for
+  `CODEX.md`, `README.md`, and `docs/INTERVIEW_QUESTIONS.md`.
+- `git status --short` — exactly the six planned M1.3A paths were modified or untracked.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips are unchanged M1.1 Windows symlink-privilege limitations;
+every M1.3A indexer test ran and passed.
 
 ## Milestone 1.2B validation record
 
@@ -815,6 +892,10 @@ claim `make check` ran.
 - **2026-07-16:** M1.2B focused tests passed all 34 cases with 100% import-contract and 96%
   Python-extractor coverage. The full suite passed 84 tests, retained the 3 existing Windows
   symlink skips, and reported 92% total coverage.
+- **2026-07-16:** M1.3A focused tests passed all 21 cases with 92% indexer coverage. The
+  full suite passed 105 tests, retained the same 3 Windows scanner-symlink skips, and
+  reported 92% total coverage. No M1.3A test was skipped, and the final worktree contained
+  exactly the six planned paths.
 
 ## Final portfolio deliverables
 

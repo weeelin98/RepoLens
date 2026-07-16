@@ -42,3 +42,18 @@
 5. Why must a star import remain an explicit unexpanded fact?
 6. Why does AST extraction never execute the imported module?
 7. Why are target nodes and cross-file `imports` edges deferred to a resolver?
+
+## Milestone 1.3A — In-memory Repository Graph Assembly
+
+1. Why does the repository node represent the root instead of adding a second root
+   directory node?
+2. How are parent directory nodes derived from accepted scanner paths without recreating
+   ignored or resource-limited directories?
+3. Why must extractor selection happen before source loading?
+4. How do `tokenize.open()` and the post-scan containment check protect different parts of
+   the source-loading contract?
+5. Why do source-loading failures preserve a file node but omit a module node?
+6. Where are node, edge, import, and diagnostic ordering enforced, and why are those
+   explicit contracts rather than incidental insertion order?
+7. Why do unresolved import facts remain outside `GraphSnapshot` while extractor nodes and
+   direct containment edges are merged into it?
