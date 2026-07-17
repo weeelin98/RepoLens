@@ -26,6 +26,7 @@ SELECTED_FIXTURES = (
     "fullstack_fastapi_react",
     "typescript_frontend",
 )
+FIXTURE_TEXT_SUFFIXES = frozenset({".js", ".json", ".jsx", ".md", ".py", ".toml", ".ts", ".tsx"})
 EXPECTED_COUNTS = {
     "python_service": (14, 13, 2, 0),
     "markdown_documented_project": (10, 9, 0, 0),
@@ -48,6 +49,20 @@ def _gold_bytes(fixture_id: str) -> bytes:
 
 def _graph_bytes(repository: Path) -> bytes:
     return (repository / "repolens-out" / "graph.json").read_bytes()
+
+
+@pytest.mark.parametrize("fixture_id", SELECTED_FIXTURES)
+def test_selected_fixture_sources_and_gold_use_lf(fixture_id: str) -> None:
+    fixture_root = FIXTURES_ROOT / fixture_id
+    source_files = tuple(
+        path
+        for path in (fixture_root / "repo").rglob("*")
+        if path.is_file() and path.suffix in FIXTURE_TEXT_SUFFIXES
+    )
+
+    assert source_files
+    for path in (*source_files, fixture_root / "m1-graph.json"):
+        assert b"\r" not in path.read_bytes(), f"CR line ending found in {path}"
 
 
 def _assert_matches_gold(fixture_id: str, expected: bytes, actual: bytes) -> None:
