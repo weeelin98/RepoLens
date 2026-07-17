@@ -1,6 +1,7 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1 complete locally; Milestone 2 JavaScript/TypeScript extraction is next
+Status: Milestone 1 complete; Linux CI verified.
+Next active milestone: Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction
 Last updated: 2026-07-17
 
 ## Mission and user problem
@@ -584,6 +585,9 @@ syntax trees and require controlled gold migrations.
   `gold.json` files retain resolver/query/impact expectations beyond M1. Four selected
   fixtures also commit complete canonical `m1-graph.json` results, paired with literal
   semantic assertions and an explicit check/update helper.
+- **2026-07-17 — M1 acceptance portability is fixture-scoped.** PR #2 normalizes only
+  committed harness fixture text and M1 gold to LF, and corrects the CLI non-execution
+  test's contradictory absolute-path input without changing production extraction.
 
 ## Progress
 
@@ -598,8 +602,9 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next active milestone: Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
-Milestone 1 is complete locally; commit, push, and fresh Linux CI verification remain.
+Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
+`28ad7fab44fa08d66934dacf541f9b366db14673`. Next active milestone: Milestone 2 —
+JavaScript, TypeScript, JSX, and TSX extraction.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -720,7 +725,7 @@ Milestone 1 is complete locally; commit, push, and fresh Linux CI verification r
 - [x] Added scanner, registry, extractor, indexer, and CLI coverage for selection, fields,
   JSONC, diagnostics, limits, determinism, path privacy, and non-execution.
 
-### Milestone 1.5 — Fixture gold and deterministic acceptance (complete locally)
+### Milestone 1.5 — Fixture gold and deterministic acceptance (complete)
 
 - [x] Selected `python_service`, `markdown_documented_project`,
   `fullstack_fastapi_react`, and `typescript_frontend` for current M1 acceptance.
@@ -733,8 +738,11 @@ Milestone 1 is complete locally; commit, push, and fresh Linux CI verification r
 - [x] Added graph-integrity, path-privacy, output-pruning, controlled-enumeration,
   non-execution/network, partial-diagnostic, and fatal-root acceptance coverage.
 - [x] Confirmed all M1.1–M1.5 slices and the complete Milestone 1 local acceptance contract.
-- [x] Kept the three real-symlink tests as honest Windows privilege skips; fresh Linux CI
-  verification is pending until commit and push.
+- [x] Kept the three real-symlink tests as honest Windows privilege skips.
+- [x] Repaired cross-platform acceptance on `fix/m1-linux-ci` by normalizing selected
+  fixture/gold text to LF and correcting the contradictory absolute-path CLI test input.
+- [x] Verified the complete M1 acceptance suite on Linux through PR #2 at commit
+  `28ad7fab44fa08d66934dacf541f9b366db14673`; the required CI check passed.
 
 ## Milestone 1.5 validation record
 
@@ -760,9 +768,18 @@ Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
 - `git diff --check` passed. GNU Make was not invoked, so this record does not claim
   `make check` ran.
 
-Fresh Linux CI verification remains pending until commit and push. Historical M1.1 Linux
-CI already verified the three real-symlink behaviors, but this M1.5 change set has not yet
-run remotely.
+PR #1 was merged before its CI completed. Its Linux run then failed five pytest cases: four
+M1 gold byte comparisons reflected Windows CRLF fixture sizes rather than Linux LF sizes,
+and one CLI non-execution test contradicted its own absolute-path assertion by embedding
+the temporary repository path in package-script input. Production behavior was not the
+cause.
+
+PR #2 (`fix/m1-linux-ci`) repaired those cross-platform test inputs. At repair commit
+`28ad7fab44fa08d66934dacf541f9b366db14673`, GitHub Actions workflow run `29590342724`
+completed successfully: its required `check` job passed `make check` and
+`uv run repolens doctor`. The complete Milestone 1 acceptance suite therefore passed on
+Linux. Historical M1.1 Linux CI also remains the real-symlink integration evidence that
+the local Windows privilege limitation cannot provide.
 
 ## Milestone 1.4B validation record
 

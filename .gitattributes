@@ -1,0 +1,12 @@
+.gitattributes text eol=lf
+harness/fixtures/**/*.py text eol=lf
+harness/fixtures/**/*.md text eol=lf
+harness/fixtures/**/*.toml text eol=lf
+harness/fixtures/**/*.json text eol=lf
+harness/fixtures/**/*.jsonl text eol=lf
+harness/fixtures/**/*.patch text eol=lf
+harness/fixtures/**/*.js text eol=lf
+harness/fixtures/**/*.jsx text eol=lf
+harness/fixtures/**/*.ts text eol=lf
+harness/fixtures/**/*.tsx text eol=lf
+harness/fixtures/**/m1-graph.json text eol=lf

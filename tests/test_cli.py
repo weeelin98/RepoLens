@@ -111,6 +111,7 @@ def test_index_serializes_metadata_deterministically_without_executing_scripts(
     tmp_path: Path,
 ) -> None:
     sentinel = tmp_path / "executed.txt"
+    inert_script = "echo executed > executed.txt"
     write_file(tmp_path, "pyproject.toml", '[project]\nname = "python-app"\n')
     write_file(
         tmp_path,
@@ -118,7 +119,7 @@ def test_index_serializes_metadata_deterministically_without_executing_scripts(
         json.dumps(
             {
                 "name": "web-app",
-                "scripts": {"build": f"echo executed > {sentinel}"},
+                "scripts": {"build": inert_script},
                 "dependencies": {"react": "^19"},
             }
         ),
@@ -140,6 +141,11 @@ def test_index_serializes_metadata_deterministically_without_executing_scripts(
     assert first_result.exit_code == second_result.exit_code == 0
     assert first == second
     assert not sentinel.exists()
+    assert next(
+        fact["value"]
+        for fact in payload["metadata_facts"]
+        if fact["source_path"] == "package.json" and fact["field"] == "scripts"
+    ) == {"build": inert_script}
     assert {fact["source_path"] for fact in payload["metadata_facts"]} == {
         "package.json",
         "pyproject.toml",

@@ -6,8 +6,9 @@ Milestone 1.5 proves the complete Milestone 1 repository-indexing contract again
 reviewable fixture repositories. It adds committed canonical `RepositoryIndexResult` gold,
 semantic acceptance assertions authored independently from production output, byte-level
 repeatability checks, graph-integrity checks, security/non-execution checks, representative
-diagnostic checks, and closeout documentation. When all local checks pass, Milestone 1 is
-locally complete and `repolens index PATH` has a reproducible acceptance record.
+diagnostic checks, and closeout documentation. With local and Linux acceptance checks
+passing, Milestone 1 is complete and `repolens index PATH` has a reproducible acceptance
+record.
 
 ## Scope and non-goals
 
@@ -33,7 +34,7 @@ relationship. Existing future-looking harness `gold.json` files remain unchanged
   paths, ambiguity, queries, and impact. They are valid evaluation contracts but are not
   current M1 production snapshots and must not be overwritten.
 - Linux CI runs `make check`, which covers format check, lint, Mypy, full pytest, and
-  harness smoke. `doctor` is healthy locally but is not yet explicit in the workflow.
+  harness smoke, followed by an explicit `doctor` step. PR #2 verified both steps.
 
 ## Acceptance criteria
 
@@ -59,8 +60,9 @@ relationship. Existing future-looking harness `gold.json` files remain unchanged
    valid partial graph and CLI exit 0; fatal invalid-root behavior remains non-zero.
 9. Existing scanner, extractor, Markdown, metadata, indexer, CLI, model, evaluation, and
    harness tests remain green.
-10. Local validation records exact results without claiming GitHub Actions passed during
-    this run. Windows real-link skips and pending post-push Linux verification remain clear.
+10. Local validation and remote Linux validation are recorded separately and exactly.
+    Windows real-link privilege skips remain clear, and Linux success is claimed only for
+    the verified PR #2 workflow.
 
 ## Milestone phases
 
@@ -88,9 +90,9 @@ helpers inside assertion construction.
 
 Make `doctor` explicit in the existing Linux workflow without adding a second workflow.
 Document gold commands and semantic differences in `harness/README.md`. Only after all local
-acceptance passes, mark M1.1–M1.5 and Milestone 1 locally complete in `CODEX.md` and
-`README.md`, add learning questions, preserve the Windows symlink limitation, and name M2
-as the next active milestone.
+acceptance passes, mark M1.1–M1.5 complete in `CODEX.md` and `README.md`, add learning
+questions, preserve the Windows symlink limitation, and name M2 as the next active
+milestone. Final completion also requires a verified Linux acceptance run.
 
 ### Phase 5 — Full validation and deterministic transcript
 
@@ -146,6 +148,15 @@ edge cases.
   documentation after the local acceptance gate passed.
 - [x] 2026-07-17: Ran the complete validation set, recorded four two-run SHA-256 proofs,
   removed generated fixture output, and audited the final scope.
+- [x] 2026-07-17: PR #1 was merged before CI completed; its Linux run exposed four
+  platform-dependent gold-size failures and one contradictory CLI test input.
+- [x] 2026-07-17: PR #2 repaired fixture/gold LF portability and the CLI test input on
+  `fix/m1-linux-ci` at commit `28ad7fab44fa08d66934dacf541f9b366db14673`.
+- [x] 2026-07-17: PR #2 Linux workflow run `29590342724` passed its required `check` job,
+  including `make check` and `doctor`; Milestone 1 acceptance passed on Linux.
+- [x] 2026-07-17: Closed M1 documentation after rerunning local format, lint, Mypy, pytest,
+  harness, and doctor validation; no production, test, fixture, dependency, script, or CI
+  file changed in the closeout.
 
 ## Decisions
 
@@ -163,6 +174,9 @@ edge cases.
   network-free command to the current workflow changes no product behavior.
 - **2026-07-17 — No production repair is planned.** The baseline demonstrates no failing M1
   criterion. Any production edit requires a focused failing regression first.
+- **2026-07-17 — Keep the Linux repair fixture-scoped.** Normalize committed harness text
+  and M1 gold to LF and correct the test's contradictory absolute input; do not remove
+  `size_bytes`, scripts metadata, or absolute-path leak assertions from production tests.
 
 ## Discoveries and surprises
 
@@ -171,8 +185,12 @@ edge cases.
   manifest's repository path is indexed; M1.5 will clean generated outputs before evidence
   runs.
 - Existing `make check` already executes the full pytest suite, so adding the focused test
-  file automatically places M1 acceptance in Linux CI. Only explicit doctor coverage is
-  missing from the workflow.
+  file automatically placed M1 acceptance in Linux CI. At planning time only explicit
+  doctor coverage was missing; M1.5 added it, and PR #2 verified both steps.
+- PR #1 was merged before CI completed. Its subsequent Linux failure was not a production
+  indexing defect: four gold files encoded Windows CRLF byte sizes, and one CLI test
+  embedded an absolute temporary path that its own assertion prohibited. PR #2 repaired
+  those inputs without changing production code.
 
 ## Validation transcript
 
@@ -226,8 +244,23 @@ Manual CLI two-run fixture evidence, recorded after removing previous generated 
   runs; bytes equal; 2 nodes, 1 edge, 0 imports, 0 diagnostics.
 
 Every generated fixture `repolens-out` directory was removed after recording evidence.
-GNU Make was not invoked and this plan does not claim `make check` ran. GitHub Actions was
-not run during this local session; fresh Linux CI verification remains pending after push.
+GNU Make was not invoked during the original Windows validation, and this plan does not
+claim otherwise. PR #1 was merged before CI completed and its Linux run failed the five
+cross-platform acceptance cases described above. PR #2 on `fix/m1-linux-ci` repaired them.
+At commit `28ad7fab44fa08d66934dacf541f9b366db14673`, Linux workflow run `29590342724`
+completed successfully; its required `check` job passed `make check` and `doctor`, verifying
+the complete Milestone 1 acceptance suite on Linux.
+
+Documentation closeout validation on 2026-07-17 from the same repair commit and branch:
+
+- `uv run ruff format --check .` — exit 0; 48 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 33 source files.
+- `uv run pytest` — exit 0; 186 passed, 3 Windows real-symlink tests skipped because of
+  privilege error 1314, and total coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 healthy; no network
+  required.
 
 ## Learning checkpoint
 
@@ -240,9 +273,9 @@ fact graph rather than a resolved dependency or call graph.
 
 ## Outcome and follow-ups
 
-Milestone 1 is locally complete. Four selected fixtures have committed current-schema gold,
+Milestone 1 is complete. Four selected fixtures have committed current-schema gold,
 literal semantic review points, graph-integrity validation, non-execution and diagnostic
-acceptance, controlled-order stability, and repeated byte proof. No production defect or
-production-code change was required. Commit, push, and fresh Linux CI verification remain
-developer actions. The next active milestone is Milestone 2 — JavaScript, TypeScript, JSX,
-and TSX extraction.
+acceptance, controlled-order stability, and repeated byte proof. PR #2 repaired
+cross-platform fixture/test inputs without production-code changes, and Linux CI verified
+the complete acceptance suite at commit `28ad7fab44fa08d66934dacf541f9b366db14673`.
+The next active milestone is Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
