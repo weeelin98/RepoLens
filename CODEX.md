@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.4B deterministic project metadata extraction implemented
+Status: Milestone 1 complete locally; Milestone 2 JavaScript/TypeScript extraction is next
 Last updated: 2026-07-17
 
 ## Mission and user problem
@@ -580,6 +580,10 @@ syntax trees and require controlled gold migrations.
   `tomllib` parses pyproject data, strict standard JSON parses package data, and
   `json-with-comments>=1.2.10,<2` supports tsconfig comments/trailing commas. None exposes
   reliable field positions, so facts carry source paths without fabricated spans.
+- **2026-07-17 — M1 acceptance gold is separate from future harness gold.** Existing
+  `gold.json` files retain resolver/query/impact expectations beyond M1. Four selected
+  fixtures also commit complete canonical `m1-graph.json` results, paired with literal
+  semantic assertions and an explicit check/update helper.
 
 ## Progress
 
@@ -594,8 +598,8 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next active slice: Milestone 1.5 — Fixture gold, byte determinism, acceptance validation,
-and Milestone 1 closeout. Milestone 1 remains active until that closeout passes.
+Next active milestone: Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
+Milestone 1 is complete locally; commit, push, and fresh Linux CI verification remain.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -715,6 +719,50 @@ and Milestone 1 closeout. Milestone 1 remains active until that closeout passes.
   scripts, entry points, backends, dependencies, exports, and paths remain inert data.
 - [x] Added scanner, registry, extractor, indexer, and CLI coverage for selection, fields,
   JSONC, diagnostics, limits, determinism, path privacy, and non-execution.
+
+### Milestone 1.5 — Fixture gold and deterministic acceptance (complete locally)
+
+- [x] Selected `python_service`, `markdown_documented_project`,
+  `fullstack_fastapi_react`, and `typescript_frontend` for current M1 acceptance.
+- [x] Added separate complete canonical `m1-graph.json` records without replacing the
+  future resolver/query harness `gold.json` contracts.
+- [x] Added an explicit check/update helper; ordinary tests and check mode never overwrite
+  committed gold.
+- [x] Added independently authored Python, Markdown, and metadata semantic expectations,
+  full byte comparisons, meaningful unified differences, and model round-trip checks.
+- [x] Added graph-integrity, path-privacy, output-pruning, controlled-enumeration,
+  non-execution/network, partial-diagnostic, and fatal-root acceptance coverage.
+- [x] Confirmed all M1.1–M1.5 slices and the complete Milestone 1 local acceptance contract.
+- [x] Kept the three real-symlink tests as honest Windows privilege skips; fresh Linux CI
+  verification is pending until commit and push.
+
+## Milestone 1.5 validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- Locked sync resolved 27 packages and checked 26.
+- Ruff format left 48 files unchanged; format check and lint passed.
+- Mypy reported no issues in 33 source files.
+- Focused suites passed: M1 acceptance 12; scanner 33 plus 3 Windows real-symlink skips;
+  extractors 36; Markdown 24; metadata 17; indexer 24; CLI 19.
+- Full pytest passed 182 tests, skipped the same 3 real-symlink integrations because
+  Windows returned privilege error 1314, and reported 92% total coverage.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  package 0.1.0 healthy and no network requirement. All 4 committed M1 gold files matched.
+- Repeated CLI hashes matched per fixture: `python_service`
+  `00fbfa010fdf255f4438dc84606eab8c9af30c8bc41c8c81400a7f9aee11fdab`;
+  `markdown_documented_project`
+  `6b313491589c5e3bba0cf071ac6043baa8396070a68440e1d3d6cd3d2761d574`;
+  `fullstack_fastapi_react`
+  `8af42c916a3ede5fc68386fd76e9e7525c335cfb7c7c6d53a995b078fa18b9c4`;
+  `typescript_frontend`
+  `761554305f6e4d06cf6329569e30c5292c7ff4ec90762438ec9675e1b7c8d549`.
+- `git diff --check` passed. GNU Make was not invoked, so this record does not claim
+  `make check` ran.
+
+Fresh Linux CI verification remains pending until commit and push. Historical M1.1 Linux
+CI already verified the three real-symlink behaviors, but this M1.5 change set has not yet
+run remotely.
 
 ## Milestone 1.4B validation record
 

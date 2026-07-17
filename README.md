@@ -36,10 +36,7 @@ Milestone 1.4A adds deterministic CommonMark extraction for accepted `.md` files
 now includes one Markdown document node, ATX/Setext section nodes, heading containment, and
 typed unresolved link, fenced-code, and inline-code facts. Links and code references are
 not resolved, fenced code is never executed or recursively parsed, and inline syntax keeps
-line-level evidence when parser columns are unavailable. Import resolution and
-`CODEBASE_OVERVIEW.md` remain unfinished. Milestone 1 remains active; the next slice is
-Milestone 1.5 — Fixture gold, byte determinism, acceptance validation, and Milestone 1
-closeout.
+line-level evidence when parser columns are unavailable.
 
 Milestone 1.4B extracts documented direct fields from exactly `pyproject.toml`,
 `package.json`, and `tsconfig.json`. Arbitrary JSON/TOML and lockfiles are not scanned.
@@ -47,6 +44,21 @@ Pyproject and package data use standard-library parsers; tsconfig uses a constra
 parser for comments and trailing commas. Scripts, entry points, build backends,
 dependencies, exports, and TypeScript paths are retained only as unresolved data and are
 never executed or resolved.
+
+Milestone 1.5 completes Milestone 1 locally. Four existing fixture repositories now have
+separate committed canonical M1 outputs, independently authored semantic acceptance tests,
+graph-integrity checks, non-execution checks, deterministic diagnostic coverage, and
+two-run byte comparisons. The local Windows suite passes with three real-symlink tests
+skipped because link creation returned privilege error 1314; the existing platform-neutral
+coverage passes, while fresh Linux CI verification remains pending until these changes are
+pushed.
+
+The current `graph.json` contains repository/directory/file structure, Python modules and
+definitions with spans and stable IDs, unresolved Python imports, Markdown document/section
+hierarchy and direct syntax facts, allowlisted direct project metadata, and deterministic
+diagnostics. It does not contain resolved imports, calls, JavaScript/TypeScript source
+symbols, overview/query/impact results, or MCP behavior. The next active milestone is
+Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
 
 ## Development
 

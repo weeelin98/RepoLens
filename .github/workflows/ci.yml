@@ -19,3 +19,4 @@ jobs:
           enable-cache: true
       - run: uv sync --dev --locked
       - run: make check
+      - run: uv run repolens doctor
