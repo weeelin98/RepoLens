@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import os
 import sys
+from contextlib import suppress
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import typer
 
 from repolens import __version__
+from repolens.config import RuntimeConfig
 from repolens.evaluation.validators import validate_harness
+from repolens.graph.serialization import canonical_index_json
+from repolens.indexer import index_repository
+from repolens.models import NodeKind
 
 app = typer.Typer(
     name="repolens",
@@ -38,6 +44,31 @@ def _unfinished(command: str, milestone: int) -> None:
         err=True,
     )
     raise typer.Exit(code=2)
+
+
+def _fatal_error(message: str) -> NoReturn:
+    typer.echo(f"Error: {message}", err=True)
+    raise typer.Exit(code=1)
+
+
+def _output_directory(repository_root: Path, config: RuntimeConfig) -> Path:
+    if config.output_directory.is_absolute():
+        return config.output_directory
+    return repository_root / config.output_directory
+
+
+def _atomic_write(path: Path, value: str) -> None:
+    temporary_path = path.with_name(f".{path.name}.tmp")
+    try:
+        with temporary_path.open("w", encoding="utf-8", newline="\n") as stream:
+            stream.write(value)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary_path.replace(path)
+    except OSError:
+        with suppress(OSError):
+            temporary_path.unlink(missing_ok=True)
+        raise
 
 
 @app.command()
@@ -75,10 +106,61 @@ def harness_smoke(
 
 
 @app.command()
-def index(path: Path) -> None:
-    """Index a repository (Milestone 1+)."""
+def index(
+    path: Annotated[
+        Path,
+        typer.Argument(
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
+            resolve_path=False,
+        ),
+    ],
+) -> None:
+    """Index a repository and atomically write its deterministic graph.json."""
 
-    _unfinished("index", 1)
+    config = RuntimeConfig()
+    try:
+        result = index_repository(path, config)
+    except Exception:
+        _fatal_error("repository indexing failed")
+
+    fatal_diagnostic = next(
+        (diagnostic for diagnostic in result.scanner_diagnostics if diagnostic.path is None),
+        None,
+    )
+    if fatal_diagnostic is not None:
+        _fatal_error(fatal_diagnostic.message)
+
+    resolved_root = path.resolve()
+    output_directory = _output_directory(resolved_root, config)
+    try:
+        output_directory.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        _fatal_error("could not create output directory")
+
+    output_path = output_directory / "graph.json"
+    try:
+        serialized = canonical_index_json(result)
+        _atomic_write(output_path, serialized)
+    except OSError:
+        _fatal_error("could not write graph.json")
+    except Exception:
+        _fatal_error("could not serialize graph.json")
+
+    file_count = sum(node.kind is NodeKind.FILE for node in result.graph.nodes)
+    diagnostic_count = len(result.scanner_diagnostics) + len(result.extractor_diagnostics)
+    display_output = (
+        output_path
+        if config.output_directory.is_absolute()
+        else path / config.output_directory / "graph.json"
+    )
+    typer.echo(
+        f"Indexed {path}: files={file_count}, nodes={len(result.graph.nodes)}, "
+        f"edges={len(result.graph.edges)}, imports={len(result.imports)}, "
+        f"warnings={diagnostic_count}; graph.json={display_output}"
+    )
 
 
 @app.command()

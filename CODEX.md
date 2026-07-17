@@ -1,7 +1,7 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 0 complete
-Last updated: 2026-07-15
+Status: Milestone 1 complete locally; Milestone 2 JavaScript/TypeScript extraction is next
+Last updated: 2026-07-17
 
 ## Mission and user problem
 
@@ -102,6 +102,7 @@ MCP adapters. Fixtures can be schema-validated before production extractors exis
 - `models` and `ids`: graph contract, normalization, stable IDs, canonical serialization.
 - `scanner`: discovery only; it does not parse content.
 - `extractors`: syntax/metadata facts and direct evidence; no graph traversal.
+- `indexer`: scanner/extractor orchestration and deterministic in-memory graph assembly.
 - `resolvers`: cross-file candidates, ambiguity, confidence, and resolver notes.
 - `graph`: assembly, invariants, deterministic export, traversal primitives.
 - `context`: ranking, budgeting, overview and scoped Markdown rendering.
@@ -157,6 +158,13 @@ separate decision.
 
 An extractor declares supported extensions and accepts a normalized source record. It
 returns nodes, direct edges, diagnostics, and unresolved syntax facts without side effects.
+`ExtractionResult.imports` holds immutable unresolved import facts; it never implies a
+resolved target node or graph edge.
+`ExtractionResult.markdown_facts` similarly holds immutable unresolved links, fenced-code
+blocks, and inline-code syntax. Their containing Markdown section may be known while their
+referenced target remains unresolved, so they do not become `references` edges.
+`ExtractionResult.metadata_facts` holds allowlisted direct fields from exact supported
+project manifests. These values are declarations, not installed or resolved dependencies.
 Output order is irrelevant because the graph boundary sorts it. Invalid syntax produces a
 diagnostic and partial results only when correctness can be maintained.
 
@@ -165,6 +173,35 @@ JS/TS/JSX/TSX later use pinned compatible tree-sitter grammars. Markdown determi
 extracts headings, hierarchy, links, fenced blocks, and inline-code references. Metadata
 extractors parse only documented structural fields. The MVP never asks an LLM to invent an
 edge.
+
+## Repository indexing contract
+
+`index_repository(root, config, registry=None)` is the M1.3A in-memory orchestration
+boundary. It scans accepted files, creates one repository node plus only the directory and
+file nodes required by those files, safely loads registry-supported source, merges direct
+extractor facts, and returns `RepositoryIndexResult`. The result keeps a validated
+`GraphSnapshot`, unresolved import facts, typed scanner diagnostics, and extractor/source
+loading diagnostic strings as separate channels.
+
+The repository node uses the portable `<repository>` sentinel and represents the root; no
+second root-directory node exists. Directory/file identity uses only repository-relative
+POSIX paths. New structural containment is repository-to-directory/file,
+directory-to-directory/file, and Python-file-to-module. All such edges are syntax-direct
+with confidence 1.0. Extractor module/symbol containment is retained unchanged.
+
+The default registry is fresh per call and contains `PythonExtractor`,
+`MarkdownExtractor`, and `ProjectMetadataExtractor`; an injected registry is authoritative.
+Files without an extractor
+remain structural nodes and are not read. Supported source uses the existing contained
+`tokenize.open()` loader, so Python encoding cookies remain honored and ordinary Markdown
+is decoded as UTF-8. Expected read/decode failures preserve the file node, emit a
+deterministic relative-path diagnostic, and do not block later files. This API does not
+resolve imports/references or execute/import target code. M1.3B exposes it through
+`repolens index PATH`, canonically serializes the complete `RepositoryIndexResult`, and
+atomically writes the configured `graph.json`. M1.4A adds file-to-document containment,
+Markdown heading hierarchy, and unresolved Markdown facts to that same result.
+M1.4B adds exact-basename discovery and unresolved metadata facts for `pyproject.toml`,
+`package.json`, and `tsconfig.json`; arbitrary JSON/TOML remains outside scanning.
 
 ## Resolver contracts
 
@@ -194,8 +231,13 @@ metrics/indexing.json
 metrics/evaluation.json
 ```
 
-`graph.json` is schema-versioned, UTF-8, canonical-keyed, and stably sorted. Generated dates
-are omitted from deterministic payloads or isolated outside compared content.
+`graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
+unresolved imports, unresolved Markdown facts, direct project metadata facts, scanner
+diagnostics, and
+extractor/source-loading diagnostics. It is
+UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
+dates and machine paths are omitted. The CLI writes a flushed temporary sibling and uses
+atomic replacement so an expected failure cannot expose a partially written final file.
 
 The overview targets about 8,000 tokens by default and contains summary, languages and
 frameworks, entry points, modules, important symbols, frontend routes/components, backend
@@ -224,8 +266,10 @@ repolens eval
 repolens doctor
 ```
 
-Milestone 0 also exposes `repolens harness-smoke`. Unimplemented commands exit nonzero with
-a message naming the target milestone; they never emit fake artifacts.
+Milestone 0 also exposes `repolens harness-smoke`. `repolens index PATH` is implemented in
+M1.3B with default output `<repository>/repolens-out/graph.json`; other unimplemented
+commands exit nonzero with a message naming the target milestone and never emit fake
+artifacts.
 
 Later MCP tools are `get_codebase_overview`, `find_symbol`, `get_symbol_context`,
 `trace_dependency_path`, and `analyze_change_impact`. MCP handlers validate transport
@@ -254,7 +298,7 @@ gold output. Determinism tests compare bytes across repeated runs and shuffled i
 
 RepoLens reads local repositories and writes only beneath the configured output directory.
 It never executes indexed source, imports target modules, evaluates package scripts, or
-follows symlinks outside the repository by default. Discovery later enforces maximum file
+follows symlinks outside the repository by default. Discovery enforces maximum file
 bytes, repository bytes/file count, ignored directories, allowed suffixes, decoding policy,
 and configurable time/diagnostic limits. Generated snippets escape Markdown fences. Git
 commands use argument arrays and validated ranges. Tests never require a network. MCP input
@@ -462,6 +506,84 @@ syntax trees and require controlled gold migrations.
   early even while production behavior is intentionally unfinished.
 - **2026-07-14 — Clean-room Graphify reference.** Public product ideas inform requirements;
   no source implementation is reused.
+- **2026-07-16 — Scanner output excludes absolute paths.** `SourceFile` contains only a
+  normalized repository-relative path, lowercase suffix, and observed byte size so public
+  deterministic results remain portable and serialization-safe.
+- **2026-07-16 — Milestone 1.1 uses root `.gitignore` scope.** Root Git-style patterns and
+  ordinary negation are in scope; nested `.gitignore` stacking is explicitly deferred.
+  `pathspec` will become a direct runtime dependency only when matching is implemented.
+- **2026-07-16 — Expected scanner failures use one result channel.** Invalid roots produce
+  empty diagnosed results; per-entry failures produce partial results; aggregate count/byte
+  limits stop at the first excluded eligible file.
+- **2026-07-16 — M1.1A stops at basic deterministic scanning.** Root validation, top-down
+  traversal, default and directory-symlink pruning, normalized suffix filtering, relative
+  metadata, and total bytes are implemented. Ignore matching, limits, escaping file-link
+  detection, and broad filesystem recovery remain later M1.1 work.
+- **2026-07-16 — M1.1C uses root-only pathspec matching.** Only the resolved root
+  `.gitignore` is decoded. Pathspec 1.1.1 applies Git-compatible matching and negation to
+  relative POSIX paths; nested ignore files have no rule effect, and ignored files are
+  excluded before `stat()`.
+- **2026-07-16 — M1.1B checks limits before result mutation.** Individual oversize files
+  produce a diagnostic and scanning continues. Accepted-file count and proposed repository
+  bytes are checked before append; their first breach produces one diagnostic and stops the
+  deterministic scan.
+
+- **2026-07-16 — M1.1D separates lexical identity from resolved containment.** File-link
+  targets are resolved strictly and checked with `Path.relative_to`; accepted files retain
+  the repository-relative lexical link path. Expected metadata `PermissionError` and
+  `OSError` states become stable diagnostics without exception or absolute-target text.
+- **2026-07-16 — M1.2A uses nearest lexical definition scope.** A direct class-scope
+  function is a method; a function nested inside that method is a function. Qualified names
+  preserve every enclosing definition and drive the existing stable-ID function.
+- **2026-07-16 — Python definition spans preserve AST coordinates.** Definition lines and
+  columns map directly from `lineno`, `end_lineno`, `col_offset`, and `end_col_offset`.
+  Columns therefore remain zero-based UTF-8 byte offsets with an exclusive end.
+- **2026-07-16 — M1.2B keeps import syntax outside the graph.** `UnresolvedImportFact`
+  records direct AST evidence in `ExtractionResult.imports`; an `IMPORTS` edge remains
+  unavailable until a resolver can supply a defensible target node.
+- **2026-07-16 — Import facts use alias-node spans and nullable relative modules.** One
+  `ast.alias` becomes one fact. `from . import local` preserves `module=None` and level 1,
+  while star imports remain explicit and unexpanded.
+- **2026-07-16 — M1.3A wraps the existing validated graph.** `RepositoryIndexResult` keeps
+  `GraphSnapshot` intact and adds unresolved imports plus scanner and extractor diagnostic
+  channels rather than widening graph models with non-graph facts.
+- **2026-07-16 — Structural roots and IDs remain portable.** One `<repository>` node
+  represents the root; directory and file nodes use relative POSIX paths, and no absolute
+  repository path participates in graph identity or serialized models.
+- **2026-07-16 — Registry selection precedes source loading.** The default registry contains
+  Python only, an injected registry is not mutated, and files with no extractor are never
+  decoded. Python reads use `tokenize.open()` plus a repeated containment check.
+- **2026-07-16 — graph.json stores the complete index result.** Serializing only
+  `GraphSnapshot` would lose unresolved imports and diagnostics, so the existing canonical
+  encoder now supports `RepositoryIndexResult` without a parallel handwritten schema.
+- **2026-07-16 — CLI graph writes are atomic.** The command serializes in memory, writes and
+  syncs `.graph.json.tmp`, closes it, then replaces the final path. Expected failures clean
+  the temporary file when practical and never print success.
+- **2026-07-16 — Configured output is pruned before scanner accounting.** A strict
+  repository-descendant output directory is excluded top-down so preserved source-like
+  files there cannot consume limits or enter repeated indexes.
+- **2026-07-17 — M1.4A uses `markdown-it-py` CommonMark tokens.** The constrained
+  `markdown-it-py>=4.2,<5` dependency supplies structured ATX/Setext headings, links,
+  fences, inline code, and block line maps. Inline child columns are not exposed, so facts
+  retain conservative containing-block line evidence instead of searched/guessed columns.
+- **2026-07-17 — Unresolved Markdown syntax remains outside the graph.** One typed
+  `UnresolvedMarkdownFact` contract preserves links, fenced code, inline code, source
+  occurrence, and nearest section. `REFERENCES` edges remain deferred because graph
+  endpoints cannot be fabricated solely to satisfy the edge model.
+- **2026-07-17 — M1.4B discovers exact metadata basenames.** Scanner eligibility supplements
+  `.py`/`.md` suffixes with only `pyproject.toml`, `package.json`, and `tsconfig.json`, then
+  applies the same ignore, containment, `stat()`, resource, and output-pruning rules.
+- **2026-07-17 — Project metadata remains immutable direct facts.** Documented fields are
+  stored in `RepositoryIndexResult.metadata_facts`; structural file nodes are not overloaded
+  and external dependency nodes/edges remain deferred until resolution is defensible.
+- **2026-07-17 — Metadata uses standard parsers plus constrained JSONC.** Python 3.11
+  `tomllib` parses pyproject data, strict standard JSON parses package data, and
+  `json-with-comments>=1.2.10,<2` supports tsconfig comments/trailing commas. None exposes
+  reliable field positions, so facts carry source paths without fabricated spans.
+- **2026-07-17 — M1 acceptance gold is separate from future harness gold.** Existing
+  `gold.json` files retain resolver/query/impact expectations beyond M1. Four selected
+  fixtures also commit complete canonical `m1-graph.json` results, paired with literal
+  semantic assertions and an explicit check/update helper.
 
 ## Progress
 
@@ -476,7 +598,348 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next slice: Milestone 1.1 repository scanning.
+Next active milestone: Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
+Milestone 1 is complete locally; commit, push, and fresh Linux CI verification remain.
+
+### Milestone 1.1 — Repository scanner (complete)
+
+- [x] Created the self-contained scanner ExecPlan with exact API, ignore, symlink, limit,
+  diagnostic, security, testing, and manual-implementation decisions.
+- [x] Added frozen scanner metadata/result contracts without machine-specific absolute
+  paths or graph/extractor dependencies.
+- [x] Added hand-written behavioral expectations covering all requested scanner contracts;
+  unfinished production behavior remains strict xfail.
+- [x] Kept the existing harness gold unchanged because this slice returns metadata rather
+  than graph facts.
+- [x] M1.1A complete: implemented root validation, resolved top-down traversal,
+  pre-descent default and directory-symlink pruning, normalized suffix filtering, POSIX
+  metadata, and byte totals.
+- [x] Removed strict xfails only for behavior fully delivered by M1.1A and added an explicit
+  custom `supported_suffixes` test.
+- [x] M1.1C complete: implemented root `.gitignore` matching and negation, pre-descent
+  directory pruning, and pre-`stat()` file exclusion; declared pathspec as a direct runtime
+  dependency.
+- [x] M1.1B complete: implemented maximum individual file bytes, accepted file count, and
+  accepted repository bytes with exact-boundary acceptance and stable diagnostics.
+- [x] Added explicit tests for boundary equality, excluded-file accounting, deterministic
+  aggregate stops, and root-ignore interaction.
+- [x] M1.1D complete: implemented external file-symlink containment, lexical-path inclusion
+  for contained links, and focused deterministic filesystem diagnostics before resource
+  accounting.
+- [x] Added platform-independent containment/failure tests plus real directory, external
+  file, and contained file symlink integrations for Linux CI.
+- [x] Linux GitHub Actions passed after push and verified the real directory, escaping-file,
+  and contained-file symlink integrations skipped by the local Windows environment.
+- [x] Closed Milestone 1.1 documentation and handed off to M1.2A without marking all of
+  Milestone 1 complete.
+
+### Milestone 1.2A — Basic Python definition extraction
+
+- [x] Added a stateless `.py` extractor compatible with the existing `Extractor` protocol
+  and `ExtractionResult` contract.
+- [x] Derived deterministic module names for ordinary modules, package `__init__.py`, and
+  root `__init__.py` without repository-name inference.
+- [x] Extracted module, class, function, async-function, method, and nested-definition nodes
+  with qualified names, AST spans, and existing stable IDs.
+- [x] Added only nearest-parent syntax-direct `contains` edges; imports, calls, inheritance,
+  graph building, and orchestration remain deferred.
+- [x] Added deterministic syntax-error diagnostics with no partial AST facts.
+- [x] Added manually authored tests for naming, classification, nesting, identities,
+  containment, paths, spans, determinism, extensions, invalid syntax, and non-execution.
+- [x] Completed the full M1.2A validation record; the developer learning checkpoint remains
+  the handoff question for review.
+
+### Milestone 1.2B — Unresolved Python import fact extraction
+
+- [x] Added the missing generic unresolved-import fact contract and default-empty
+  `ExtractionResult.imports` channel without changing graph models.
+- [x] Collected one fact per `ast.alias` for direct, from, relative, aliased, multi-member,
+  nested, repeated, and star imports.
+- [x] Preserved nullable modules, relative levels, aliases, explicit star state, relative
+  POSIX paths, and alias-level AST spans without resolution or execution.
+- [x] Sorted facts deterministically without deduplication and preserved all M1.2A
+  definition nodes and containment edges.
+- [x] Added manual syntax expectations, contract-invariant tests, non-execution coverage,
+  and the M1.2B learning questions.
+- [x] Completed the full M1.2B validation record; the developer learning checkpoint remains
+  the handoff question for review.
+
+### Milestone 1.3A — In-memory repository graph assembly
+
+- [x] Added a frozen top-level result containing a validated graph, unresolved imports,
+  scanner diagnostics, and extractor/source-loading diagnostics.
+- [x] Added deterministic repository, accepted-directory, and accepted-file nodes with
+  portable stable IDs and syntax-direct structural containment.
+- [x] Connected scanning to a fresh default Python registry, Python-aware source loading,
+  extractor merging, and file-to-module containment without writing artifacts.
+- [x] Preserved ignored/limited-file exclusion, unresolved import facts, invalid-source
+  partial results, and focused read failures without blocking later files.
+- [x] Added 21 focused tests covering all requested hierarchy, merge, diagnostics,
+  determinism, integrity, encoding, limit, ignore, and non-execution behaviors.
+- [x] Completed the full M1.3A validation record; the developer learning checkpoint remains
+  the handoff question for review.
+
+### Milestone 1.3B — CLI index and deterministic graph.json
+
+- [x] Replaced the `index` placeholder with a Typer-validated repository argument and the
+  existing M1.3A pipeline.
+- [x] Added canonical complete-result serialization and validation while preserving the
+  graph-only serialization API.
+- [x] Resolved relative output under the repository, retained absolute configured output,
+  created missing parents, and atomically replaced `graph.json`.
+- [x] Kept file-level diagnostics non-fatal and serialized while invalid invocation,
+  root-level, output, write, and unexpected pipeline failures exit non-zero.
+- [x] Pruned the configured in-repository output directory before scanner descent and
+  resource accounting without deleting preserved files.
+- [x] Added focused CLI, serialization, scanner, determinism, failure, and non-execution
+  tests and completed the full validation/manual-smoke record.
+
+### Milestone 1.4A — Basic deterministic Markdown extraction
+
+- [x] Added a `.md` extractor backed by constrained `markdown-it-py` CommonMark tokens.
+- [x] Added one stable document node per Markdown file plus ATX/Setext section nodes and
+  nearest-lower-level syntax-direct containment.
+- [x] Added typed unresolved link, fenced-code, and inline-code facts with nearest-section
+  association, deterministic occurrence order, and no target fabrication or execution.
+- [x] Preserved block line maps honestly; document columns are exact while heading, link,
+  fence, and inline child columns remain unavailable rather than guessed.
+- [x] Registered Markdown through the existing extractor registry, added file-to-document
+  containment, and included sorted Markdown facts in canonical `graph.json`.
+- [x] Added focused extractor, indexer, and CLI coverage for hierarchy, syntax, ignore,
+  determinism, path privacy, recovery, non-execution, and unchanged Python behavior.
+
+### Milestone 1.4B — Deterministic project metadata extraction
+
+- [x] Added exact-basename scanner eligibility without broad `.json` or `.toml` support.
+- [x] Extended the extractor registry with deterministic exact-filename selection and
+  precedence over extension matching.
+- [x] Added typed source-path-only facts for allowlisted pyproject, package, and tsconfig
+  fields without graph target, installation, or resolution claims.
+- [x] Used `tomllib`, strict standard JSON, and constrained `json-with-comments` parsing;
+  scripts, entry points, backends, dependencies, exports, and paths remain inert data.
+- [x] Added scanner, registry, extractor, indexer, and CLI coverage for selection, fields,
+  JSONC, diagnostics, limits, determinism, path privacy, and non-execution.
+
+### Milestone 1.5 — Fixture gold and deterministic acceptance (complete locally)
+
+- [x] Selected `python_service`, `markdown_documented_project`,
+  `fullstack_fastapi_react`, and `typescript_frontend` for current M1 acceptance.
+- [x] Added separate complete canonical `m1-graph.json` records without replacing the
+  future resolver/query harness `gold.json` contracts.
+- [x] Added an explicit check/update helper; ordinary tests and check mode never overwrite
+  committed gold.
+- [x] Added independently authored Python, Markdown, and metadata semantic expectations,
+  full byte comparisons, meaningful unified differences, and model round-trip checks.
+- [x] Added graph-integrity, path-privacy, output-pruning, controlled-enumeration,
+  non-execution/network, partial-diagnostic, and fatal-root acceptance coverage.
+- [x] Confirmed all M1.1–M1.5 slices and the complete Milestone 1 local acceptance contract.
+- [x] Kept the three real-symlink tests as honest Windows privilege skips; fresh Linux CI
+  verification is pending until commit and push.
+
+## Milestone 1.5 validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- Locked sync resolved 27 packages and checked 26.
+- Ruff format left 48 files unchanged; format check and lint passed.
+- Mypy reported no issues in 33 source files.
+- Focused suites passed: M1 acceptance 12; scanner 33 plus 3 Windows real-symlink skips;
+  extractors 36; Markdown 24; metadata 17; indexer 24; CLI 19.
+- Full pytest passed 182 tests, skipped the same 3 real-symlink integrations because
+  Windows returned privilege error 1314, and reported 92% total coverage.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  package 0.1.0 healthy and no network requirement. All 4 committed M1 gold files matched.
+- Repeated CLI hashes matched per fixture: `python_service`
+  `00fbfa010fdf255f4438dc84606eab8c9af30c8bc41c8c81400a7f9aee11fdab`;
+  `markdown_documented_project`
+  `6b313491589c5e3bba0cf071ac6043baa8396070a68440e1d3d6cd3d2761d574`;
+  `fullstack_fastapi_react`
+  `8af42c916a3ede5fc68386fd76e9e7525c335cfb7c7c6d53a995b078fa18b9c4`;
+  `typescript_frontend`
+  `761554305f6e4d06cf6329569e30c5292c7ff4ec90762438ec9675e1b7c8d549`.
+- `git diff --check` passed. GNU Make was not invoked, so this record does not claim
+  `make check` ran.
+
+Fresh Linux CI verification remains pending until commit and push. Historical M1.1 Linux
+CI already verified the three real-symlink behaviors, but this M1.5 change set has not yet
+run remotely.
+
+## Milestone 1.4B validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- `uv sync --dev --locked` — exit 0; 27 packages resolved and 26 checked.
+- `uv run ruff format .` — exit 0; 46 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 46 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 32 source files.
+- Metadata extractor tests — 17 passed; metadata extractor coverage 94%.
+- Markdown extractor tests — 24 passed; Markdown extractor focused coverage 92%.
+- Existing extractor tests — 36 passed; Python extractor coverage 97%, registry 95%.
+- Indexer tests — 24 passed; indexer coverage 93%.
+- CLI tests — 19 passed; CLI coverage 84%.
+- Additional scanner tests — 33 passed and 3 Windows real-symlink integrations skipped;
+  scanner coverage 96%.
+- Full `uv run pytest` — 170 passed and the same 3 scanner integrations skipped because
+  Windows returned symlink privilege error 1314; total coverage 92%, metadata extractor
+  coverage 94%, and serialization coverage 100%.
+- Harness smoke — 5 fixtures, 5 questions, and 5 diff cases valid.
+- Doctor — Python 3.11.15 and package 0.1.0 healthy; no network required.
+- `git diff --check` — exit 0; no whitespace errors.
+- `git status --short` — exactly 20 planned M1.4B paths modified or untracked.
+
+The manual temporary-repository smoke indexed the three supported manifests plus arbitrary
+JSON/TOML twice. Both runs reported 3 files, 4 nodes, 3 edges, 0 imports, and 0 warnings.
+Ten facts came only from the supported basenames; arbitrary values and absolute paths were
+absent, the package script did not execute, bytes matched, and the output ended with a
+newline. The verified temporary repository was removed.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips remain M1.1 Windows symlink-privilege limitations; every
+M1.4B test ran and passed.
+
+## Milestone 1.4A validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- `uv sync --dev --locked` — exit 0; 26 packages resolved and 25 packages checked.
+- `uv run ruff format .` — exit 0; 44 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 44 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 30 source files.
+- `uv run pytest tests/test_markdown_extractor.py -v` — exit 0; 24 passed; Markdown
+  extractor coverage was 93%.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; Python extractor
+  coverage was 96%.
+- `uv run pytest tests/test_indexer.py -v` — exit 0; 21 passed; indexer coverage was 92%.
+- `uv run pytest tests/test_cli.py -v` — exit 0; 17 passed; CLI coverage was 84%.
+- `uv run pytest` — exit 0; 144 passed and 3 existing scanner integrations skipped
+  because Windows returned symlink privilege error 1314; total coverage was 92%, Markdown
+  extractor coverage was 93%, and complete-result serialization coverage was 100%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; no whitespace errors.
+- `git status --short` — exactly 13 planned M1.4A paths were modified or untracked.
+
+The manual Markdown fixture smoke indexed
+`harness/fixtures/markdown_documented_project` twice. Both runs reported 2 files, 11 nodes,
+10 edges, 0 unresolved imports, and 0 warnings. Inspection found 1 Markdown document, 3
+sections, 3 Markdown hierarchy edges, and `inline_code`, `link`, and `fenced_code` facts.
+The output was byte-identical, contained no absolute fixture path, ended with a newline,
+and the generated output directory was removed afterward.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips are unchanged M1.1 Windows symlink-privilege limitations;
+every M1.4A test ran and passed.
+
+## Milestone 1.3B validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; the final run reformatted 1 file and left 41 unchanged.
+- `uv run ruff format --check .` — exit 0; 42 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 28 source files.
+- `uv run pytest tests/test_cli.py -v` — exit 0; 16 passed; CLI coverage was 84%.
+- `uv run pytest tests/test_indexer.py -v` — exit 0; 21 passed; indexer coverage was 92%.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; Python extractor
+  coverage was 96%.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 31 passed and 3 existing real-symlink
+  integrations skipped because Windows returned privilege error 1314; scanner coverage was
+  96%.
+- `uv run pytest` — exit 0; 119 passed and the same 3 scanner integrations skipped; total
+  coverage was 92%, complete-result serialization coverage was 100%, CLI coverage was 84%,
+  and indexer coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed for six
+  modified tracked files.
+- `git status --short` — exactly the ten planned M1.3B paths were modified or untracked.
+
+The manual temporary-repository smoke ran `uv run repolens index <path>` twice. Both runs
+reported 2 files, 5 nodes, 4 edges, 1 unresolved import, and 0 warnings. `graph.json` parsed
+with zero diagnostics, the two byte sequences were identical, no absolute repository path
+appeared in the JSON, and the file ended with a newline. The verified temporary directory
+was removed afterward.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips are unchanged M1.1 Windows symlink-privilege limitations;
+every M1.3B test ran and passed.
+
+## Milestone 1.3A validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 42 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 42 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 28 source files.
+- `uv run pytest tests/test_indexer.py -v` — exit 0; 21 passed; the indexer module
+  reported 92% coverage.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; the import contract
+  reported 100% coverage and the Python extractor reported 96% coverage.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 30 passed and 3 existing real-symlink
+  integrations skipped because Windows returned privilege error 1314; scanner coverage was
+  97%.
+- `uv run pytest` — exit 0; 105 passed and the same 3 scanner integrations skipped; total
+  coverage was 92% and indexer coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed for
+  `CODEX.md`, `README.md`, and `docs/INTERVIEW_QUESTIONS.md`.
+- `git status --short` — exactly the six planned M1.3A paths were modified or untracked.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips are unchanged M1.1 Windows symlink-privilege limitations;
+every M1.3A indexer test ran and passed.
+
+## Milestone 1.2B validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 40 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 40 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 26 source files.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; import-fact contract
+  coverage was 100% and the Python extractor module reported 96% coverage.
+- `uv run pytest` — exit 0; 84 passed and 3 existing real-symlink scanner integrations
+  skipped because Windows returned privilege error 1314; total coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed.
+
+GNU Make was not invoked and this record does not claim `make check` ran. The three skipped
+tests are unchanged M1.1 Windows symlink-privilege limitations, not import extractor skips.
+
+## Milestone 1.2A validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 40 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 40 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 26 source files.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 17 passed; the Python extractor
+  module reported 96% coverage.
+- `uv run pytest` — exit 0; 67 passed and 3 existing real-symlink scanner integrations
+  skipped because Windows returned privilege error 1314; total coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed.
+
+GNU Make was not invoked and this record does not claim `make check` ran. The three skipped
+tests are unchanged M1.1 Windows symlink-privilege limitations, not Python extractor skips.
 
 ## Milestone 0 validation record
 
@@ -495,6 +958,123 @@ The `make check` aggregate could not start in the validation shell because GNU M
 not installed. Its five underlying commands are the first five commands recorded above;
 each was run directly and passed. This record does not claim that `make check` itself ran.
 
+## Milestone 1.1 contracts-only validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format --check .` — exit 0; `39 files already formatted`.
+- `uv run ruff check .` — exit 0; `All checks passed!`.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest` — exit 0; 25 tests passed normally, 12 strict M1.1 tests xfailed,
+  and 2 symlink tests skipped in 0.35 seconds; total coverage was 89%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff
+  cases were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+The 25 normal passes include all 23 pre-existing Milestone 0 tests. This run deliberately
+does not implement scanner traversal, ignore matching, symlink handling, or resource-limit
+behavior. The 12 reachable behavioral tests remain strict xfails until the developer
+implements their phases. Windows error 1314 prevented creation of both test symlinks, so
+those tests skipped safely. GNU Make was not invoked; this record does not claim
+`make check` ran.
+
+## Milestone 1.1A validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged in the final run.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 11 passed, 4 strict xfailed, and
+  2 symlink tests skipped in 0.24 seconds; scanner module coverage was 91%.
+- `uv run pytest` — exit 0; 34 passed normally, 4 strict xfailed, and 2 symlink tests
+  skipped in 0.31 seconds; total coverage was 90%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+GNU Make was not invoked; this record does not claim `make check` ran. The xfails remain
+for root ignore/negation, all three resource limits, and—on a link-capable platform—the
+escaping file-symlink contract. Windows error 1314 caused both symlink tests to skip before
+their scanner assertions.
+
+## Milestone 1.1C validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv lock --check` — exit 0; 26 packages resolved and the lock was current.
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 16 passed, 3 strict xfailed, and
+  2 symlink tests skipped in 0.24 seconds; scanner module coverage was 93%.
+- `uv run pytest` — exit 0; 39 passed normally, 3 strict xfailed, and 2 symlink tests
+  skipped in 0.33 seconds; total coverage was 90%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+GNU Make was not invoked; this record does not claim `make check` ran. The three resource
+limit tests remain strict xfails in the local checkout. Both symlink tests skipped because
+Windows returned error 1314 before their scanner assertions.
+
+## Milestone 1.1B validation record
+
+Validated on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format src/repolens/scanner.py tests/test_scanner.py` — exit 0; both files
+  were unchanged in the final run.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 24 passed and 2 symlink tests
+  skipped in 0.23 seconds; scanner module coverage was 96%.
+- `uv run pytest` — exit 0; 47 passed normally and 2 symlink tests skipped in 0.33
+  seconds; total coverage was 91%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0; only line-ending conversion warnings were printed.
+
+GNU Make was not invoked; this record does not claim `make check` ran. Both symlink tests
+skipped because Windows returned error 1314 before their scanner assertions. The escaping
+file-symlink test remains strict xfail on platforms that can create the link.
+
+## Milestone 1.1D validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; 39 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 39 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 25 source files.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 30 passed and 3 real-symlink
+  integrations skipped; scanner module coverage was 97%.
+- `uv run pytest` — exit 0; 53 passed and 3 real-symlink integrations skipped; total
+  coverage was 91%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases
+  were valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy;
+  no network is required.
+- `git diff --check` — exit 0.
+
+Windows error 1314 prevented creation of the real directory, escaping-file, and
+contained-file symlinks. Platform-independent focused tests passed for each decision path;
+Linux GitHub Actions subsequently passed after push and verified all three integrations
+against real symlinks. GNU Make is not installed in this shell, so this record does not
+claim `make check` ran.
+
 ## Discovery and surprise log
 
 - **2026-07-14:** The configured workspace path did not yet exist; it was created before
@@ -510,6 +1090,57 @@ each was run directly and passed. This record does not claim that `make check` i
   contains 23 passing tests and reports 87% total coverage.
 - **2026-07-15:** GNU Make is absent from the Windows validation shell, so `make check`
   could not start. Each command in its Makefile target was run directly and passed.
+- **2026-07-16:** The initiating request named branch `Python-definition-extractor`, but
+  Git reported the only local/current branch as `main`. No branch was silently created or
+  switched.
+- **2026-07-16:** `pathspec` appears transitively in `uv.lock` but is not declared in
+  `pyproject.toml`; production ignore matching must declare it directly when implemented.
+- **2026-07-16:** Windows denied both test symlink creations with error 1314. The two tests
+  skipped safely, while non-symlink behavioral contracts remained strict xfails.
+- **2026-07-16:** At M1.1A start, Git reported the requested
+  `Python-definition-extractor` branch. This differed from the earlier contracts-only
+  observation of `main`; Codex did not create or switch branches.
+- **2026-07-16:** The focused scanner suite passed 11 tests, retained 4 strict xfails for
+  later behavior, and skipped 2 symlink cases because Windows denied link creation. The
+  scanner module reported 91% coverage in the focused run.
+- **2026-07-16:** The M1.1C prompt described M1.1B resource limits as complete, but the local
+  scanner had no enforcement and all three tests remained strict xfails. This slice did not
+  implement or alter limit behavior.
+- **2026-07-16:** Offline lock regeneration failed because metadata for all supported Python
+  splits was not cached. Approved online resolution succeeded. Pathspec 1.1.1 deprecated
+  the old `gitwildmatch` factory name, so RepoLens uses its current `gitignore` factory for
+  the required Git-compatible semantics.
+- **2026-07-16:** M1.1B was implemented after M1.1C in this worktree. The focused resource
+  suite passed all 24 reachable scanner tests, skipped 2 Windows symlink cases, and reported
+  96% scanner coverage.
+- **2026-07-16:** Windows error 1314 prevented all three real-symlink integrations from
+  creating links. Platform-independent focused tests exercise directory pruning, internal
+  and external containment, broken-link resolution, permission failures, and ordinary
+  metadata failures locally. Linux GitHub Actions later passed after push and verified the
+  real filesystem integrations.
+- **2026-07-16:** The `python_service` harness gold contains future readable IDs plus
+  call/test resolver edges. M1.2A leaves it unchanged because isolated definition extraction
+  neither assembles snapshots nor resolves relationships; harness validation still passes.
+- **2026-07-16:** M1.2A focused tests passed all 17 cases and reported 96% coverage for the
+  new extractor. The full suite passed 67 tests, retained the 3 existing Windows symlink
+  skips, and reported 92% total coverage.
+- **2026-07-16:** The extraction contract promised unresolved syntax facts but had no result
+  field for them. M1.2B added one generic `imports` channel instead of misusing graph edges
+  or creating a Python-only duplicate model.
+- **2026-07-16:** Concurrent focused/full pytest startup contended for `.coverage` on
+  Windows and one process failed with error 32. Sequential reruns passed; final validation
+  therefore ran pytest commands sequentially.
+- **2026-07-16:** M1.2B focused tests passed all 34 cases with 100% import-contract and 96%
+  Python-extractor coverage. The full suite passed 84 tests, retained the 3 existing Windows
+  symlink skips, and reported 92% total coverage.
+- **2026-07-16:** M1.3A focused tests passed all 21 cases with 92% indexer coverage. The
+  full suite passed 105 tests, retained the same 3 Windows scanner-symlink skips, and
+  reported 92% total coverage. No M1.3A test was skipped, and the final worktree contained
+  exactly the six planned paths.
+- **2026-07-16:** M1.3B focused CLI tests passed all 16 cases, the full suite passed 119
+  tests with the same 3 Windows scanner-symlink skips, and total coverage remained 92%.
+  A manual two-run CLI smoke produced byte-identical complete JSON without an absolute
+  repository path; the final worktree contained exactly the ten planned paths.
 
 ## Final portfolio deliverables
 

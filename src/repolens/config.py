@@ -7,6 +7,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+PROJECT_METADATA_FILENAMES = frozenset({"package.json", "pyproject.toml", "tsconfig.json"})
+
 
 class RuntimeConfig(BaseModel):
     """Safe local defaults; scanner enforcement begins in Milestone 1."""

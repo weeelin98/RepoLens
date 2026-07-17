@@ -8,7 +8,57 @@ foundations, deterministic stable IDs/serialization, extractor interfaces, evalu
 metrics and schemas, five synthetic fixture corpora, a smoke validator, and a CLI scaffold.
 It does not yet parse a repository.
 
-The next slice is Milestone 1.1 repository scanning.
+Milestone 1.1 Repository Scanner is complete: M1.1A deterministic discovery, M1.1B resource
+limits, M1.1C repository-root `.gitignore` support, and M1.1D symlink containment and
+focused filesystem diagnostics all pass local validation. Windows skipped three real-link
+tests because symlink creation returned privilege error 1314; Linux GitHub Actions passed
+after push and verified those real symlink integrations. That completed scanner slice then
+handed off to the Python extraction work described below.
+
+Milestone 1.2A now provides isolated, standard-library AST extraction for Python modules,
+classes, functions, async functions, methods, nested definitions, stable IDs, source spans,
+and syntax-direct containment. It does not yet extract calls or build `graph.json`.
+
+Milestone 1.2B adds deterministic unresolved Python import facts for direct, from, relative,
+aliased, multi-member, nested, and star imports. These facts preserve syntax only; RepoLens
+still does not resolve targets, create cross-file import edges, or execute imported modules.
+
+Milestone 1.3A now connects scanning and Python extraction into a deterministic in-memory
+repository index. It creates repository/directory/file/module/symbol nodes, syntax-direct
+containment, unresolved import facts, and separate scanner/extractor diagnostics while
+respecting ignore, resource, encoding, and symlink boundaries.
+
+Milestone 1.3B implements `repolens index PATH`. It writes the complete deterministic index
+to `<repository>/repolens-out/graph.json` using atomic replacement, preserves non-fatal
+diagnostics, and excludes the configured output directory from repeated scans.
+
+Milestone 1.4A adds deterministic CommonMark extraction for accepted `.md` files. The graph
+now includes one Markdown document node, ATX/Setext section nodes, heading containment, and
+typed unresolved link, fenced-code, and inline-code facts. Links and code references are
+not resolved, fenced code is never executed or recursively parsed, and inline syntax keeps
+line-level evidence when parser columns are unavailable.
+
+Milestone 1.4B extracts documented direct fields from exactly `pyproject.toml`,
+`package.json`, and `tsconfig.json`. Arbitrary JSON/TOML and lockfiles are not scanned.
+Pyproject and package data use standard-library parsers; tsconfig uses a constrained JSONC
+parser for comments and trailing commas. Scripts, entry points, build backends,
+dependencies, exports, and TypeScript paths are retained only as unresolved data and are
+never executed or resolved.
+
+Milestone 1.5 completes Milestone 1 locally. Four existing fixture repositories now have
+separate committed canonical M1 outputs, independently authored semantic acceptance tests,
+graph-integrity checks, non-execution checks, deterministic diagnostic coverage, and
+two-run byte comparisons. The local Windows suite passes with three real-symlink tests
+skipped because link creation returned privilege error 1314; the existing platform-neutral
+coverage passes, while fresh Linux CI verification remains pending until these changes are
+pushed.
+
+The current `graph.json` contains repository/directory/file structure, Python modules and
+definitions with spans and stable IDs, unresolved Python imports, Markdown document/section
+hierarchy and direct syntax facts, allowlisted direct project metadata, and deterministic
+diagnostics. It does not contain resolved imports, calls, JavaScript/TypeScript source
+symbols, overview/query/impact results, or MCP behavior. The next active milestone is
+Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
 
 ## Development
 
@@ -18,8 +68,11 @@ Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 uv sync --dev
 uv run repolens --version
 uv run repolens doctor
+uv run repolens index path/to/repository
 make check
 ```
+
+The index command writes `path/to/repository/repolens-out/graph.json` by default.
 
 Pip fallback:
 

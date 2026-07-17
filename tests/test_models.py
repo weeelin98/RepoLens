@@ -5,7 +5,13 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from repolens.graph.serialization import canonical_graph_json, parse_graph_json
+from repolens.graph.serialization import (
+    canonical_graph_json,
+    canonical_index_json,
+    parse_graph_json,
+    parse_index_json,
+)
+from repolens.indexer import RepositoryIndexResult
 from repolens.models import (
     EdgeKind,
     EvidenceKind,
@@ -60,6 +66,22 @@ def test_deterministic_sorting_and_normalization() -> None:
     forward = GraphSnapshot(nodes=(node("b"), node("a")), metadata={"z": 1, "a": 2})
     reverse = GraphSnapshot(nodes=(node("a"), node("b")), metadata={"a": 2, "z": 1})
     assert canonical_graph_json(forward) == canonical_graph_json(reverse)
+
+
+def test_complete_index_json_round_trip_is_canonical() -> None:
+    result = RepositoryIndexResult(
+        graph=GraphSnapshot(nodes=(node("b"), node("a"))),
+        extractor_diagnostics=("z-warning", "a-warning"),
+    )
+
+    serialized = canonical_index_json(result)
+    parsed = parse_index_json(serialized)
+
+    assert parsed == result
+    assert serialized.startswith('{"extractor_diagnostics"')
+    assert json.loads(serialized)["graph"]["nodes"][0]["id"] == "a"
+    assert json.loads(serialized)["extractor_diagnostics"] == ["a-warning", "z-warning"]
+    assert serialized.endswith("\n")
 
 
 def test_edge_evidence_validation() -> None:
