@@ -27,12 +27,17 @@ from repolens.models import (
 
 
 class FakeExtractor:
-    def __init__(self, *extensions: str) -> None:
+    def __init__(self, *extensions: str, filenames: frozenset[str] = frozenset()) -> None:
         self._extensions = frozenset(extensions)
+        self._filenames = filenames
 
     @property
     def extensions(self) -> frozenset[str]:
         return self._extensions
+
+    @property
+    def filenames(self) -> frozenset[str]:
+        return self._filenames
 
     def extract(self, path: Path, source: str) -> ExtractionResult:
         return ExtractionResult(diagnostics=(f"{path}:{len(source)}",))
@@ -47,6 +52,29 @@ def test_extractor_registry_behavior() -> None:
     assert registry.for_path(Path("types.pyi")) is extractor
     assert registry.for_path(Path("README.md")) is None
     assert registry.extensions == (".py", ".pyi")
+    assert registry.filenames == ()
+
+
+def test_extractor_registry_selects_exact_filenames_before_extensions() -> None:
+    registry = ExtractorRegistry()
+    json_extractor = FakeExtractor(".json")
+    package_extractor = FakeExtractor(filenames=frozenset({"package.json"}))
+    registry.register(json_extractor)
+    registry.register(package_extractor)
+
+    assert registry.for_path(Path("package.json")) is package_extractor
+    assert registry.for_path(Path("other.json")) is json_extractor
+    assert registry.filenames == ("package.json",)
+
+
+def test_extractor_registry_rejects_filename_conflicts_and_non_basenames() -> None:
+    registry = ExtractorRegistry()
+    registry.register(FakeExtractor(filenames=frozenset({"package.json"})))
+
+    with pytest.raises(ValueError, match="filenames already registered"):
+        registry.register(FakeExtractor(filenames=frozenset({"package.json"})))
+    with pytest.raises(ValueError, match="must be basenames"):
+        ExtractorRegistry().register(FakeExtractor(filenames=frozenset({"nested/file"})))
 
 
 def test_extractor_registry_rejects_conflicts() -> None:

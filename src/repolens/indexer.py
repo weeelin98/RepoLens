@@ -9,8 +9,13 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from repolens.config import RuntimeConfig
-from repolens.extractors.base import UnresolvedImportFact, UnresolvedMarkdownFact
+from repolens.extractors.base import (
+    ProjectMetadataFact,
+    UnresolvedImportFact,
+    UnresolvedMarkdownFact,
+)
 from repolens.extractors.markdown import MarkdownExtractor
+from repolens.extractors.metadata import ProjectMetadataExtractor
 from repolens.extractors.python import PythonExtractor
 from repolens.extractors.registry import ExtractorRegistry
 from repolens.ids import stable_node_id
@@ -36,6 +41,7 @@ class RepositoryIndexResult(BaseModel):
     graph: GraphSnapshot
     imports: tuple[UnresolvedImportFact, ...] = ()
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
+    metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     scanner_diagnostics: tuple[ScanDiagnostic, ...] = ()
     extractor_diagnostics: tuple[str, ...] = ()
 
@@ -50,6 +56,11 @@ class RepositoryIndexResult(BaseModel):
             self,
             "markdown_facts",
             tuple(sorted(self.markdown_facts, key=UnresolvedMarkdownFact.sort_key)),
+        )
+        object.__setattr__(
+            self,
+            "metadata_facts",
+            tuple(sorted(self.metadata_facts, key=ProjectMetadataFact.sort_key)),
         )
         object.__setattr__(
             self,
@@ -76,6 +87,7 @@ class RepositoryIndexResult(BaseModel):
 def _default_registry() -> ExtractorRegistry:
     registry = ExtractorRegistry()
     registry.register(MarkdownExtractor())
+    registry.register(ProjectMetadataExtractor())
     registry.register(PythonExtractor())
     return registry
 
@@ -160,6 +172,7 @@ def index_repository(
     edges: list[GraphEdge] = []
     imports: list[UnresolvedImportFact] = []
     markdown_facts: list[UnresolvedMarkdownFact] = []
+    metadata_facts: list[ProjectMetadataFact] = []
     extractor_diagnostics: list[str] = []
     directory_nodes: dict[str, GraphNode] = {}
     file_nodes: dict[str, GraphNode] = {}
@@ -214,6 +227,7 @@ def index_repository(
         edges.extend(extraction.edges)
         imports.extend(extraction.imports)
         markdown_facts.extend(extraction.markdown_facts)
+        metadata_facts.extend(extraction.metadata_facts)
         extractor_diagnostics.extend(extraction.diagnostics)
         file_node = file_nodes[source_path]
         edges.extend(
@@ -226,6 +240,7 @@ def index_repository(
         graph=GraphSnapshot(nodes=tuple(nodes), edges=tuple(edges)),
         imports=tuple(imports),
         markdown_facts=tuple(markdown_facts),
+        metadata_facts=tuple(metadata_facts),
         scanner_diagnostics=scan_result.diagnostics,
         extractor_diagnostics=tuple(extractor_diagnostics),
     )

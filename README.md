@@ -38,7 +38,15 @@ typed unresolved link, fenced-code, and inline-code facts. Links and code refere
 not resolved, fenced code is never executed or recursively parsed, and inline syntax keeps
 line-level evidence when parser columns are unavailable. Import resolution and
 `CODEBASE_OVERVIEW.md` remain unfinished. Milestone 1 remains active; the next slice is
-Milestone 1.4B — Deterministic project metadata extraction.
+Milestone 1.5 — Fixture gold, byte determinism, acceptance validation, and Milestone 1
+closeout.
+
+Milestone 1.4B extracts documented direct fields from exactly `pyproject.toml`,
+`package.json`, and `tsconfig.json`. Arbitrary JSON/TOML and lockfiles are not scanned.
+Pyproject and package data use standard-library parsers; tsconfig uses a constrained JSONC
+parser for comments and trailing commas. Scripts, entry points, build backends,
+dependencies, exports, and TypeScript paths are retained only as unresolved data and are
+never executed or resolved.
 
 ## Development
 

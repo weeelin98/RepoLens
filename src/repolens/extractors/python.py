@@ -174,6 +174,10 @@ class PythonExtractor:
     def extensions(self) -> frozenset[str]:
         return frozenset({".py"})
 
+    @property
+    def filenames(self) -> frozenset[str]:
+        return frozenset()
+
     def extract(self, path: Path, source: str) -> ExtractionResult:
         source_path = _normalized_source_path(path)
         try:

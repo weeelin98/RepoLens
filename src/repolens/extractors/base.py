@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import math
 from enum import StrEnum
-from pathlib import Path
-from typing import Protocol, Self, runtime_checkable
+from pathlib import Path, PureWindowsPath
+from typing import Any, Protocol, Self, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
+from repolens.ids import normalize_repo_path
 from repolens.models import GraphEdge, GraphNode, SourceSpan
 
 
@@ -24,6 +27,30 @@ class MarkdownFactKind(StrEnum):
     LINK = "link"
     FENCED_CODE = "fenced_code"
     INLINE_CODE = "inline_code"
+
+
+class MetadataEcosystem(StrEnum):
+    """Supported project metadata ecosystems."""
+
+    PYTHON_PROJECT = "python_project"
+    NODE_PACKAGE = "node_package"
+    TYPESCRIPT_CONFIG = "typescript_config"
+
+
+def _normalize_json_value(value: Any) -> JsonValue:
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("metadata values must be finite")
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_normalize_json_value(item) for item in value]
+    if isinstance(value, dict):
+        if not all(isinstance(key, str) for key in value):
+            raise ValueError("metadata mapping keys must be strings")
+        return {key: _normalize_json_value(value[key]) for key in sorted(value)}
+    raise ValueError("metadata values must be JSON-compatible")
 
 
 class UnresolvedImportFact(BaseModel):
@@ -148,6 +175,47 @@ class UnresolvedMarkdownFact(BaseModel):
         )
 
 
+class ProjectMetadataFact(BaseModel):
+    """One documented direct manifest field without resolution or execution."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ecosystem: MetadataEcosystem
+    field: str = Field(min_length=1)
+    value: JsonValue
+    source_path: str = Field(min_length=1)
+    span: SourceSpan | None = None
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def normalize_value(cls, value: Any) -> JsonValue:
+        return _normalize_json_value(value)
+
+    @field_validator("source_path")
+    @classmethod
+    def normalize_source_path(cls, value: str) -> str:
+        if PureWindowsPath(value).is_absolute():
+            raise ValueError("metadata source path must be repository-relative")
+        normalized = normalize_repo_path(value)
+        if normalized == ".":
+            raise ValueError("metadata source path must name a file")
+        return normalized
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.ecosystem.value,
+            self.field,
+            json.dumps(
+                self.value,
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+        )
+
+
 class ExtractionResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -155,6 +223,7 @@ class ExtractionResult(BaseModel):
     edges: tuple[GraphEdge, ...] = ()
     imports: tuple[UnresolvedImportFact, ...] = ()
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
+    metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     diagnostics: tuple[str, ...] = ()
 
 
@@ -164,5 +233,8 @@ class Extractor(Protocol):
 
     @property
     def extensions(self) -> frozenset[str]: ...
+
+    @property
+    def filenames(self) -> frozenset[str]: ...
 
     def extract(self, path: Path, source: str) -> ExtractionResult: ...

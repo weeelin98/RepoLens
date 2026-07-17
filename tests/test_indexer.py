@@ -11,7 +11,7 @@ from pydantic import ValidationError
 
 from repolens.config import RuntimeConfig
 from repolens.extractors import ExtractionResult, ExtractorRegistry
-from repolens.extractors.base import ImportFactKind
+from repolens.extractors.base import ImportFactKind, MetadataEcosystem
 from repolens.ids import stable_node_id
 from repolens.indexer import RepositoryIndexResult, index_repository
 from repolens.models import EdgeKind, GraphNode, NodeKind
@@ -114,6 +114,66 @@ def test_markdown_file_builds_file_document_and_heading_hierarchy(tmp_path: Path
     assert (document.id, by_label["Guide"].id) in edge_pairs
     assert (by_label["Guide"].id, by_label["Install"].id) in edge_pairs
     assert nodes_of_kind(result, NodeKind.MODULE) == ()
+
+
+def test_project_metadata_files_preserve_structural_nodes_and_direct_facts(
+    tmp_path: Path,
+) -> None:
+    write_file(tmp_path, "pyproject.toml", '[project]\nname = "python-app"\n')
+    write_file(tmp_path, "web/package.json", '{"name":"web-app"}')
+    write_file(tmp_path, "web/tsconfig.json", '{"compilerOptions":{"strict":true}}')
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    assert {node.source_path for node in nodes_of_kind(result, NodeKind.FILE)} == {
+        "pyproject.toml",
+        "web/package.json",
+        "web/tsconfig.json",
+    }
+    assert {
+        (fact.ecosystem, fact.field, fact.value, fact.source_path) for fact in result.metadata_facts
+    } == {
+        (
+            MetadataEcosystem.PYTHON_PROJECT,
+            "project.name",
+            "python-app",
+            "pyproject.toml",
+        ),
+        (MetadataEcosystem.NODE_PACKAGE, "name", "web-app", "web/package.json"),
+        (
+            MetadataEcosystem.TYPESCRIPT_CONFIG,
+            "compilerOptions.strict",
+            True,
+            "web/tsconfig.json",
+        ),
+    }
+
+
+def test_arbitrary_json_and_toml_do_not_appear_or_get_decoded(tmp_path: Path) -> None:
+    write_file(tmp_path, "secret.json", '{"token":"secret"}')
+    write_file(tmp_path, "config.toml", 'token = "secret"')
+    write_file(tmp_path, "module.py", "")
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    assert {node.source_path for node in nodes_of_kind(result, NodeKind.FILE)} == {"module.py"}
+    assert result.metadata_facts == ()
+
+
+def test_malformed_metadata_preserves_file_and_does_not_block_later_manifest(
+    tmp_path: Path,
+) -> None:
+    write_file(tmp_path, "package.json", "{")
+    write_file(tmp_path, "pyproject.toml", '[project]\nname = "valid"\n')
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    assert node_for_path(result, NodeKind.FILE, "package.json")
+    assert node_for_path(result, NodeKind.FILE, "pyproject.toml")
+    assert [(fact.field, fact.value) for fact in result.metadata_facts] == [
+        ("project.name", "valid")
+    ]
+    assert result.extractor_diagnostics == ("metadata_parse_error:package.json:json",)
 
 
 def test_python_definitions_are_merged_into_graph(tmp_path: Path) -> None:
@@ -309,6 +369,10 @@ class DuplicateNodeExtractor:
     @property
     def extensions(self) -> frozenset[str]:
         return frozenset({".py"})
+
+    @property
+    def filenames(self) -> frozenset[str]:
+        return frozenset()
 
     def extract(self, path: Path, source: str) -> ExtractionResult:
         duplicate = GraphNode(id="duplicate", kind=NodeKind.MODULE, label="duplicate")

@@ -9,11 +9,12 @@ from pathlib import Path, PureWindowsPath
 from pathspec import GitIgnoreSpec
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from repolens.config import RuntimeConfig
+from repolens.config import PROJECT_METADATA_FILENAMES, RuntimeConfig
 from repolens.ids import normalize_repo_path
 
 DEFAULT_IGNORED_DIRECTORIES = frozenset({".git", ".venv", "venv", "__pycache__"})
 DEFAULT_SUPPORTED_SUFFIXES = frozenset({".md", ".py"})
+DEFAULT_SUPPORTED_FILENAMES = PROJECT_METADATA_FILENAMES
 
 
 class ScanDiagnosticCode(StrEnum):
@@ -131,6 +132,7 @@ def scan_repository(
     config: RuntimeConfig,
     *,
     supported_suffixes: frozenset[str] = DEFAULT_SUPPORTED_SUFFIXES,
+    supported_filenames: frozenset[str] = DEFAULT_SUPPORTED_FILENAMES,
 ) -> ScanResult:
     """Discover source-file metadata without reading or parsing contents."""
 
@@ -166,6 +168,7 @@ def scan_repository(
         suffix.casefold() if suffix.startswith(".") else f".{suffix.casefold()}"
         for suffix in supported_suffixes
     )
+    normalized_filenames = frozenset(supported_filenames)
     files: list[SourceFile] = []
     diagnostics: list[ScanDiagnostic] = []
     total_bytes = 0
@@ -194,7 +197,7 @@ def scan_repository(
         for filename in sorted(filenames):
             path = current_path / filename
             suffix = path.suffix.casefold()
-            if suffix not in normalized_suffixes:
+            if suffix not in normalized_suffixes and filename not in normalized_filenames:
                 continue
 
             relative_path = path.relative_to(resolved_root).as_posix()

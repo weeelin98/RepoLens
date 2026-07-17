@@ -552,8 +552,42 @@ def test_supported_suffixes_override_is_normalized(tmp_path: Path) -> None:
     assert result.total_bytes == 5
 
 
+def test_exact_metadata_filenames_are_supported_without_broad_json_or_toml(
+    tmp_path: Path,
+) -> None:
+    write_file(tmp_path, "pyproject.toml", "x")
+    write_file(tmp_path, "package.json", "{}")
+    write_file(tmp_path, "nested/tsconfig.json", "{}")
+    write_file(tmp_path, "package-lock.json", "{}")
+    write_file(tmp_path, "secret.json", "{}")
+    write_file(tmp_path, "config.toml", "x")
+    write_file(tmp_path, "PYPROJECT.TOML", "x")
+
+    result = scan_repository(tmp_path, RuntimeConfig())
+
+    assert result_paths(result) == (
+        "nested/tsconfig.json",
+        "package.json",
+        "pyproject.toml",
+    )
+
+
+def test_metadata_filenames_still_obey_ignore_and_resource_limits(tmp_path: Path) -> None:
+    write_file(tmp_path, ".gitignore", "ignored/package.json\n")
+    write_file(tmp_path, "ignored/package.json", "{}")
+    write_file(tmp_path, "package.json", "{}")
+    write_file(tmp_path, "pyproject.toml", "x")
+
+    result = scan_repository(tmp_path, RuntimeConfig(maximum_file_count=1))
+
+    assert result_paths(result) == ("package.json",)
+    assert diagnostic_pairs(result) == (
+        ("pyproject.toml", ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED),
+    )
+
+
 def test_configured_output_directory_is_pruned_before_limits(tmp_path: Path) -> None:
-    output_file = write_file(tmp_path, "a-output/preserved.py", "output")
+    output_file = write_file(tmp_path, "a-output/package.json", "output")
     write_file(tmp_path, "z-source/visible.py", "v")
     config = RuntimeConfig(
         output_directory=Path("a-output"),

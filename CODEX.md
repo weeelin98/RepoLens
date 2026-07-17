@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.4A basic deterministic Markdown extraction implemented
+Status: Milestone 1.4B deterministic project metadata extraction implemented
 Last updated: 2026-07-17
 
 ## Mission and user problem
@@ -163,6 +163,8 @@ resolved target node or graph edge.
 `ExtractionResult.markdown_facts` similarly holds immutable unresolved links, fenced-code
 blocks, and inline-code syntax. Their containing Markdown section may be known while their
 referenced target remains unresolved, so they do not become `references` edges.
+`ExtractionResult.metadata_facts` holds allowlisted direct fields from exact supported
+project manifests. These values are declarations, not installed or resolved dependencies.
 Output order is irrelevant because the graph boundary sorts it. Invalid syntax produces a
 diagnostic and partial results only when correctness can be maintained.
 
@@ -187,8 +189,9 @@ POSIX paths. New structural containment is repository-to-directory/file,
 directory-to-directory/file, and Python-file-to-module. All such edges are syntax-direct
 with confidence 1.0. Extractor module/symbol containment is retained unchanged.
 
-The default registry is fresh per call and contains `PythonExtractor` and
-`MarkdownExtractor`; an injected registry is authoritative. Files without an extractor
+The default registry is fresh per call and contains `PythonExtractor`,
+`MarkdownExtractor`, and `ProjectMetadataExtractor`; an injected registry is authoritative.
+Files without an extractor
 remain structural nodes and are not read. Supported source uses the existing contained
 `tokenize.open()` loader, so Python encoding cookies remain honored and ordinary Markdown
 is decoded as UTF-8. Expected read/decode failures preserve the file node, emit a
@@ -197,6 +200,8 @@ resolve imports/references or execute/import target code. M1.3B exposes it throu
 `repolens index PATH`, canonically serializes the complete `RepositoryIndexResult`, and
 atomically writes the configured `graph.json`. M1.4A adds file-to-document containment,
 Markdown heading hierarchy, and unresolved Markdown facts to that same result.
+M1.4B adds exact-basename discovery and unresolved metadata facts for `pyproject.toml`,
+`package.json`, and `tsconfig.json`; arbitrary JSON/TOML remains outside scanning.
 
 ## Resolver contracts
 
@@ -227,7 +232,8 @@ metrics/evaluation.json
 ```
 
 `graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
-unresolved imports, unresolved Markdown facts, scanner diagnostics, and
+unresolved imports, unresolved Markdown facts, direct project metadata facts, scanner
+diagnostics, and
 extractor/source-loading diagnostics. It is
 UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
 dates and machine paths are omitted. The CLI writes a flushed temporary sibling and uses
@@ -564,6 +570,16 @@ syntax trees and require controlled gold migrations.
   `UnresolvedMarkdownFact` contract preserves links, fenced code, inline code, source
   occurrence, and nearest section. `REFERENCES` edges remain deferred because graph
   endpoints cannot be fabricated solely to satisfy the edge model.
+- **2026-07-17 — M1.4B discovers exact metadata basenames.** Scanner eligibility supplements
+  `.py`/`.md` suffixes with only `pyproject.toml`, `package.json`, and `tsconfig.json`, then
+  applies the same ignore, containment, `stat()`, resource, and output-pruning rules.
+- **2026-07-17 — Project metadata remains immutable direct facts.** Documented fields are
+  stored in `RepositoryIndexResult.metadata_facts`; structural file nodes are not overloaded
+  and external dependency nodes/edges remain deferred until resolution is defensible.
+- **2026-07-17 — Metadata uses standard parsers plus constrained JSONC.** Python 3.11
+  `tomllib` parses pyproject data, strict standard JSON parses package data, and
+  `json-with-comments>=1.2.10,<2` supports tsconfig comments/trailing commas. None exposes
+  reliable field positions, so facts carry source paths without fabricated spans.
 
 ## Progress
 
@@ -578,9 +594,8 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next active slice: Milestone 1.4B — Deterministic project metadata extraction. Milestone 1
-remains active because its authoritative contract still requires metadata extraction and
-later graph/resolution behavior.
+Next active slice: Milestone 1.5 — Fixture gold, byte determinism, acceptance validation,
+and Milestone 1 closeout. Milestone 1 remains active until that closeout passes.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -688,6 +703,52 @@ later graph/resolution behavior.
   containment, and included sorted Markdown facts in canonical `graph.json`.
 - [x] Added focused extractor, indexer, and CLI coverage for hierarchy, syntax, ignore,
   determinism, path privacy, recovery, non-execution, and unchanged Python behavior.
+
+### Milestone 1.4B — Deterministic project metadata extraction
+
+- [x] Added exact-basename scanner eligibility without broad `.json` or `.toml` support.
+- [x] Extended the extractor registry with deterministic exact-filename selection and
+  precedence over extension matching.
+- [x] Added typed source-path-only facts for allowlisted pyproject, package, and tsconfig
+  fields without graph target, installation, or resolution claims.
+- [x] Used `tomllib`, strict standard JSON, and constrained `json-with-comments` parsing;
+  scripts, entry points, backends, dependencies, exports, and paths remain inert data.
+- [x] Added scanner, registry, extractor, indexer, and CLI coverage for selection, fields,
+  JSONC, diagnostics, limits, determinism, path privacy, and non-execution.
+
+## Milestone 1.4B validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- `uv sync --dev --locked` — exit 0; 27 packages resolved and 26 checked.
+- `uv run ruff format .` — exit 0; 46 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 46 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 32 source files.
+- Metadata extractor tests — 17 passed; metadata extractor coverage 94%.
+- Markdown extractor tests — 24 passed; Markdown extractor focused coverage 92%.
+- Existing extractor tests — 36 passed; Python extractor coverage 97%, registry 95%.
+- Indexer tests — 24 passed; indexer coverage 93%.
+- CLI tests — 19 passed; CLI coverage 84%.
+- Additional scanner tests — 33 passed and 3 Windows real-symlink integrations skipped;
+  scanner coverage 96%.
+- Full `uv run pytest` — 170 passed and the same 3 scanner integrations skipped because
+  Windows returned symlink privilege error 1314; total coverage 92%, metadata extractor
+  coverage 94%, and serialization coverage 100%.
+- Harness smoke — 5 fixtures, 5 questions, and 5 diff cases valid.
+- Doctor — Python 3.11.15 and package 0.1.0 healthy; no network required.
+- `git diff --check` — exit 0; no whitespace errors.
+- `git status --short` — exactly 20 planned M1.4B paths modified or untracked.
+
+The manual temporary-repository smoke indexed the three supported manifests plus arbitrary
+JSON/TOML twice. Both runs reported 3 files, 4 nodes, 3 edges, 0 imports, and 0 warnings.
+Ten facts came only from the supported basenames; arbitrary values and absolute paths were
+absent, the package script did not execute, bytes matched, and the output ended with a
+newline. The verified temporary repository was removed.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips remain M1.1 Windows symlink-privilege limitations; every
+M1.4B test ran and passed.
 
 ## Milestone 1.4A validation record
 

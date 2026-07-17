@@ -87,3 +87,17 @@
    token and claiming exact columns?
 8. How do Markdown document/section nodes and unresolved facts flow into canonical
    `graph.json` without absolute repository paths?
+
+## Milestone 1.4B — Deterministic Project Metadata Extraction
+
+1. Why is accepting three exact basenames safer than adding `.json` and `.toml` suffixes?
+2. How does `tomllib` parse pyproject data without importing the project or invoking its
+   build backend?
+3. Why can package scripts be retained safely as strings without running npm or Node?
+4. Why do tsconfig `extends`, `baseUrl`, and `paths` remain unresolved in extraction?
+5. Why do metadata facts use source-path-only evidence while Python AST and Markdown block
+   tokens can provide spans?
+6. Why are dependency declarations facts rather than `external_dependency` nodes here?
+7. How do exact-filename registry precedence and an authoritative injected registry coexist?
+8. Where are nested mappings, safe set-like arrays, fact collections, and JSON keys
+   normalized for deterministic `graph.json` output?

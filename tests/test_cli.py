@@ -107,6 +107,61 @@ def test_repeated_markdown_index_is_byte_identical_without_absolute_paths(tmp_pa
     assert b'"markdown_facts"' in second
 
 
+def test_index_serializes_metadata_deterministically_without_executing_scripts(
+    tmp_path: Path,
+) -> None:
+    sentinel = tmp_path / "executed.txt"
+    write_file(tmp_path, "pyproject.toml", '[project]\nname = "python-app"\n')
+    write_file(
+        tmp_path,
+        "package.json",
+        json.dumps(
+            {
+                "name": "web-app",
+                "scripts": {"build": f"echo executed > {sentinel}"},
+                "dependencies": {"react": "^19"},
+            }
+        ),
+    )
+    write_file(
+        tmp_path,
+        "tsconfig.json",
+        '{// comment\n"extends":"./base.json","compilerOptions":{"strict":true,},}',
+    )
+    write_file(tmp_path, "secret.json", '{"token":"not-indexed"}')
+    write_file(tmp_path, "config.toml", 'token = "not-indexed"')
+
+    first_result = runner.invoke(app, ["index", str(tmp_path)])
+    first = graph_path(tmp_path).read_bytes()
+    second_result = runner.invoke(app, ["index", str(tmp_path)])
+    second = graph_path(tmp_path).read_bytes()
+    payload = json.loads(second)
+
+    assert first_result.exit_code == second_result.exit_code == 0
+    assert first == second
+    assert not sentinel.exists()
+    assert {fact["source_path"] for fact in payload["metadata_facts"]} == {
+        "package.json",
+        "pyproject.toml",
+        "tsconfig.json",
+    }
+    assert "secret.json" not in second.decode()
+    assert "config.toml" not in second.decode()
+    assert str(tmp_path).encode() not in second
+
+
+def test_malformed_metadata_is_a_nonfatal_serialized_warning(tmp_path: Path) -> None:
+    write_file(tmp_path, "package.json", "{")
+
+    result = runner.invoke(app, ["index", str(tmp_path)])
+    parsed = parse_index_json(graph_path(tmp_path).read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert parsed.extractor_diagnostics == ("metadata_parse_error:package.json:json",)
+    assert parsed.metadata_facts == ()
+    assert "warnings=1" in result.output
+
+
 def test_index_nonfatal_syntax_diagnostic_writes_graph_and_succeeds(tmp_path: Path) -> None:
     write_file(tmp_path, "broken.py", ")")
 
