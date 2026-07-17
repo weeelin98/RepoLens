@@ -61,12 +61,20 @@ on `fix/m1-linux-ci`: fixture sources and M1 gold are normalized to LF, and the 
 test now uses relative input while retaining its absolute-path and non-execution checks.
 Linux CI passed the repaired acceptance suite.
 
+Milestone 2.1A adds pinned tree-sitter extraction for exactly `.js` and `.ts`. The index now
+includes deterministic JavaScript/TypeScript modules, named functions and async functions,
+classes, ordinary class methods, simple identifier-bound arrows, and typed unresolved
+direct ESM import/export facts. Malformed files retain only defensible error-free subtrees
+plus a stable diagnostic. JSX/TSX, CommonJS, re-exports, calls, and target resolution remain
+outside this slice.
+
 The current `graph.json` contains repository/directory/file structure, Python modules and
-definitions with spans and stable IDs, unresolved Python imports, Markdown document/section
+definitions with spans and stable IDs, JavaScript/TypeScript modules and bounded definition
+facts, unresolved Python imports and ESM imports/exports, Markdown document/section
 hierarchy and direct syntax facts, allowlisted direct project metadata, and deterministic
-diagnostics. It does not contain resolved imports, calls, JavaScript/TypeScript source
-symbols, overview/query/impact results, or MCP behavior. The next active milestone is
-Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction.
+diagnostics. It does not contain resolved imports/exports, calls, JSX/TSX symbols,
+overview/query/impact results, or MCP behavior. Milestone 2 remains open; the next proposed
+slice is M2.1B.
 
 ## Development
 

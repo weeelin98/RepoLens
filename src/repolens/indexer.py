@@ -6,14 +6,17 @@ import tokenize
 from pathlib import Path, PurePosixPath
 from typing import Self
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from repolens.config import RuntimeConfig
 from repolens.extractors.base import (
     ProjectMetadataFact,
+    UnresolvedEsmExportFact,
+    UnresolvedEsmImportFact,
     UnresolvedImportFact,
     UnresolvedMarkdownFact,
 )
+from repolens.extractors.javascript_typescript import JavaScriptTypeScriptExtractor
 from repolens.extractors.markdown import MarkdownExtractor
 from repolens.extractors.metadata import ProjectMetadataExtractor
 from repolens.extractors.python import PythonExtractor
@@ -30,7 +33,12 @@ from repolens.models import (
 from repolens.scanner import ScanDiagnostic, SourceFile, scan_repository
 
 _REPOSITORY_SENTINEL = "<repository>"
-_LANGUAGES_BY_SUFFIX = {".md": "markdown", ".py": "python"}
+_LANGUAGES_BY_SUFFIX = {
+    ".js": "javascript",
+    ".md": "markdown",
+    ".py": "python",
+    ".ts": "typescript",
+}
 
 
 class RepositoryIndexResult(BaseModel):
@@ -40,6 +48,12 @@ class RepositoryIndexResult(BaseModel):
 
     graph: GraphSnapshot
     imports: tuple[UnresolvedImportFact, ...] = ()
+    esm_imports: tuple[UnresolvedEsmImportFact, ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
+    esm_exports: tuple[UnresolvedEsmExportFact, ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
     metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     scanner_diagnostics: tuple[ScanDiagnostic, ...] = ()
@@ -47,6 +61,16 @@ class RepositoryIndexResult(BaseModel):
 
     @model_validator(mode="after")
     def normalize_collections(self) -> Self:
+        object.__setattr__(
+            self,
+            "esm_imports",
+            tuple(sorted(self.esm_imports, key=UnresolvedEsmImportFact.sort_key)),
+        )
+        object.__setattr__(
+            self,
+            "esm_exports",
+            tuple(sorted(self.esm_exports, key=UnresolvedEsmExportFact.sort_key)),
+        )
         object.__setattr__(
             self,
             "imports",
@@ -86,6 +110,7 @@ class RepositoryIndexResult(BaseModel):
 
 def _default_registry() -> ExtractorRegistry:
     registry = ExtractorRegistry()
+    registry.register(JavaScriptTypeScriptExtractor())
     registry.register(MarkdownExtractor())
     registry.register(ProjectMetadataExtractor())
     registry.register(PythonExtractor())
@@ -171,6 +196,8 @@ def index_repository(
     nodes: list[GraphNode] = [repository_node]
     edges: list[GraphEdge] = []
     imports: list[UnresolvedImportFact] = []
+    esm_imports: list[UnresolvedEsmImportFact] = []
+    esm_exports: list[UnresolvedEsmExportFact] = []
     markdown_facts: list[UnresolvedMarkdownFact] = []
     metadata_facts: list[ProjectMetadataFact] = []
     extractor_diagnostics: list[str] = []
@@ -226,6 +253,8 @@ def index_repository(
         nodes.extend(extraction.nodes)
         edges.extend(extraction.edges)
         imports.extend(extraction.imports)
+        esm_imports.extend(extraction.esm_imports)
+        esm_exports.extend(extraction.esm_exports)
         markdown_facts.extend(extraction.markdown_facts)
         metadata_facts.extend(extraction.metadata_facts)
         extractor_diagnostics.extend(extraction.diagnostics)
@@ -239,6 +268,8 @@ def index_repository(
     return RepositoryIndexResult(
         graph=GraphSnapshot(nodes=tuple(nodes), edges=tuple(edges)),
         imports=tuple(imports),
+        esm_imports=tuple(esm_imports),
+        esm_exports=tuple(esm_exports),
         markdown_facts=tuple(markdown_facts),
         metadata_facts=tuple(metadata_facts),
         scanner_diagnostics=scan_result.diagnostics,

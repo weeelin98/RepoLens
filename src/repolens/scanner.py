@@ -13,7 +13,7 @@ from repolens.config import PROJECT_METADATA_FILENAMES, RuntimeConfig
 from repolens.ids import normalize_repo_path
 
 DEFAULT_IGNORED_DIRECTORIES = frozenset({".git", ".venv", "venv", "__pycache__"})
-DEFAULT_SUPPORTED_SUFFIXES = frozenset({".md", ".py"})
+DEFAULT_SUPPORTED_SUFFIXES = frozenset({".js", ".md", ".py", ".ts"})
 DEFAULT_SUPPORTED_FILENAMES = PROJECT_METADATA_FILENAMES
 
 

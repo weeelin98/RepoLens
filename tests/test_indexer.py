@@ -11,7 +11,13 @@ from pydantic import ValidationError
 
 from repolens.config import RuntimeConfig
 from repolens.extractors import ExtractionResult, ExtractorRegistry
-from repolens.extractors.base import ImportFactKind, MetadataEcosystem
+from repolens.extractors.base import (
+    EsmExportKind,
+    EsmImportKind,
+    ImportFactKind,
+    MetadataEcosystem,
+)
+from repolens.graph.serialization import canonical_index_json
 from repolens.ids import stable_node_id
 from repolens.indexer import RepositoryIndexResult, index_repository
 from repolens.models import EdgeKind, GraphNode, NodeKind
@@ -428,3 +434,117 @@ def test_injected_registry_is_authoritative_and_not_mutated(
     assert registry.extensions == ()
     assert len(nodes_of_kind(result, NodeKind.FILE)) == 1
     assert nodes_of_kind(result, NodeKind.MODULE) == ()
+
+
+def test_javascript_and_typescript_facts_integrate_without_import_export_edges(
+    tmp_path: Path,
+) -> None:
+    write_file(
+        tmp_path,
+        "web/app.js",
+        "import client, { request as send } from './client.js';\n"
+        "export const load = () => send();\n",
+    )
+    write_file(
+        tmp_path,
+        "web/service.ts",
+        "export default class Service { async run(): Promise<void> {} }\n",
+    )
+
+    result = index_repository(tmp_path, RuntimeConfig())
+    app_file = node_for_path(result, NodeKind.FILE, "web/app.js")
+    service_file = node_for_path(result, NodeKind.FILE, "web/service.ts")
+    names = {node.qualified_name: node.kind for node in result.graph.nodes}
+
+    assert app_file.language == "javascript"
+    assert service_file.language == "typescript"
+    assert (
+        names.items()
+        >= {
+            "web.app": NodeKind.MODULE,
+            "web.app.load": NodeKind.FUNCTION,
+            "web.service": NodeKind.MODULE,
+            "web.service.Service": NodeKind.CLASS,
+            "web.service.Service.run": NodeKind.METHOD,
+        }.items()
+    )
+    assert [
+        (fact.kind, fact.module, fact.imported_name, fact.local_name) for fact in result.esm_imports
+    ] == [
+        (EsmImportKind.DEFAULT, "./client.js", "default", "client"),
+        (EsmImportKind.NAMED, "./client.js", "request", "send"),
+    ]
+    assert [
+        (fact.kind, fact.exported_name, fact.local_name, fact.is_default)
+        for fact in result.esm_exports
+    ] == [
+        (EsmExportKind.DECLARATION, "load", "load", False),
+        (EsmExportKind.DECLARATION, "default", "Service", True),
+    ]
+    assert all(
+        edge.relation not in {EdgeKind.IMPORTS, EdgeKind.EXPORTS} for edge in result.graph.edges
+    )
+
+
+def test_javascript_typescript_index_is_repeatable_and_path_private(tmp_path: Path) -> None:
+    write_file(
+        tmp_path,
+        "src/api.ts",
+        "import { value } from './value.js';\nexport function load(): void {}\n",
+    )
+
+    first = canonical_index_json(index_repository(tmp_path, RuntimeConfig()))
+    second = canonical_index_json(index_repository(tmp_path, RuntimeConfig()))
+
+    assert first == second
+    assert str(tmp_path) not in second
+    assert str(tmp_path.resolve()) not in second
+    assert '"esm_imports"' in second
+    assert '"esm_exports"' in second
+
+
+def test_malformed_javascript_preserves_module_and_error_free_siblings(
+    tmp_path: Path,
+) -> None:
+    write_file(
+        tmp_path,
+        "broken.js",
+        "function before() {}\n}\nfunction after() {}\n",
+    )
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    assert {node.qualified_name for node in result.graph.nodes if node.qualified_name} >= {
+        "broken",
+        "broken.before",
+        "broken.after",
+    }
+    assert result.extractor_diagnostics == ("tree_sitter_syntax_error:broken.js:2:0",)
+
+
+def test_jsx_and_tsx_remain_absent_from_default_index(tmp_path: Path) -> None:
+    write_file(tmp_path, "src/component.jsx", "export function Component() {}")
+    write_file(tmp_path, "src/component.tsx", "export function Component() {}")
+    write_file(tmp_path, "src/visible.js", "export function visible() {}")
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    source_paths = {node.source_path for node in result.graph.nodes}
+    assert "src/visible.js" in source_paths
+    assert "src/component.jsx" not in source_paths
+    assert "src/component.tsx" not in source_paths
+
+
+def test_javascript_source_is_parsed_but_never_executed(tmp_path: Path) -> None:
+    sentinel = tmp_path / "executed.txt"
+    write_file(
+        tmp_path,
+        "danger.js",
+        "import { writeFileSync } from 'node:fs';\n"
+        f"writeFileSync({str(sentinel)!r}, 'executed');\n",
+    )
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    assert node_for_path(result, NodeKind.MODULE, "danger.js")
+    assert not sentinel.exists()
