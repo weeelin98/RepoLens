@@ -45,13 +45,21 @@ parser for comments and trailing commas. Scripts, entry points, build backends,
 dependencies, exports, and TypeScript paths are retained only as unresolved data and are
 never executed or resolved.
 
-Milestone 1.5 completes Milestone 1 locally. Four existing fixture repositories now have
+Milestone 1.5 completes Milestone 1. Four existing fixture repositories now have
 separate committed canonical M1 outputs, independently authored semantic acceptance tests,
 graph-integrity checks, non-execution checks, deterministic diagnostic coverage, and
 two-run byte comparisons. The local Windows suite passes with three real-symlink tests
-skipped because link creation returned privilege error 1314; the existing platform-neutral
-coverage passes, while fresh Linux CI verification remains pending until these changes are
-pushed.
+skipped because link creation returned privilege error 1314. The complete M1 acceptance
+suite also passed in Linux GitHub Actions on
+[PR #2](https://github.com/weeelin98/RepoLens/pull/2) at repair commit
+`28ad7fab44fa08d66934dacf541f9b366db14673`.
+
+PR #1 was merged before its CI completed, and that Linux run failed because Windows CRLF
+fixture bytes had produced platform-dependent gold sizes and a contradictory CLI test had
+placed its own absolute temporary path in package-script input. PR #2 repaired both issues
+on `fix/m1-linux-ci`: fixture sources and M1 gold are normalized to LF, and the inert script
+test now uses relative input while retaining its absolute-path and non-execution checks.
+Linux CI passed the repaired acceptance suite.
 
 The current `graph.json` contains repository/directory/file structure, Python modules and
 definitions with spans and stable IDs, unresolved Python imports, Markdown document/section
