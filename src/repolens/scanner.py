@@ -112,6 +112,20 @@ def _filesystem_diagnostic(relative_path: str, error: OSError) -> ScanDiagnostic
     )
 
 
+def _configured_output_relative_directory(
+    resolved_root: Path,
+    output_directory: Path,
+) -> str | None:
+    candidate = (
+        output_directory if output_directory.is_absolute() else resolved_root / output_directory
+    )
+    try:
+        relative = candidate.resolve().relative_to(resolved_root).as_posix()
+    except (OSError, ValueError):
+        return None
+    return None if relative == "." else relative
+
+
 def scan_repository(
     repository_root: Path,
     config: RuntimeConfig,
@@ -135,6 +149,10 @@ def scan_repository(
         return ScanResult(diagnostics=(diagnostic,))
 
     resolved_root = repository_root.resolve()
+    output_relative_directory = _configured_output_relative_directory(
+        resolved_root,
+        config.output_directory,
+    )
     root_gitignore = resolved_root / ".gitignore"
     ignore_spec = (
         GitIgnoreSpec.from_lines(
@@ -164,7 +182,10 @@ def scan_repository(
             directory_path = current_path / dirname
             if dirname in DEFAULT_IGNORED_DIRECTORIES or directory_path.is_symlink():
                 continue
-            relative_directory = directory_path.relative_to(resolved_root).as_posix() + "/"
+            relative_directory_path = directory_path.relative_to(resolved_root).as_posix()
+            if relative_directory_path == output_relative_directory:
+                continue
+            relative_directory = relative_directory_path + "/"
             if ignore_spec is not None and ignore_spec.match_file(relative_directory):
                 continue
             kept_directories.append(dirname)

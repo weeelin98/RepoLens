@@ -57,3 +57,20 @@
    explicit contracts rather than incidental insertion order?
 7. Why do unresolved import facts remain outside `GraphSnapshot` while extractor nodes and
    direct containment edges are merged into it?
+
+## Milestone 1.3B — CLI Index and Deterministic graph.json
+
+1. How does Typer validate and pass a relative, absolute, or current-directory repository
+   path without changing the process working directory?
+2. How does `RuntimeConfig.output_directory` distinguish repository-relative and absolute
+   output locations?
+3. Why is the complete `RepositoryIndexResult` serialized instead of only its
+   `GraphSnapshot`?
+4. Why must nodes, edges, imports, and diagnostics be sorted before JSON encoding even when
+   JSON keys are also sorted?
+5. How does writing, flushing, syncing, closing, and replacing a sibling temporary file
+   prevent a partially written `graph.json`?
+6. Which diagnostics remain non-fatal, and why can the command still succeed while
+   preserving them in output?
+7. Why must the configured output directory be pruned before scanner resource accounting
+   rather than filtered after scanning?

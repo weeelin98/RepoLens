@@ -26,9 +26,14 @@ still does not resolve targets, create cross-file import edges, or execute impor
 Milestone 1.3A now connects scanning and Python extraction into a deterministic in-memory
 repository index. It creates repository/directory/file/module/symbol nodes, syntax-direct
 containment, unresolved import facts, and separate scanner/extractor diagnostics while
-respecting ignore, resource, encoding, and symlink boundaries. It does not write output or
-resolve imports. Milestone 1 remains active; the next slice is Milestone 1.3B — CLI index
-command and deterministic `graph.json` output.
+respecting ignore, resource, encoding, and symlink boundaries.
+
+Milestone 1.3B implements `repolens index PATH`. It writes the complete deterministic index
+to `<repository>/repolens-out/graph.json` using atomic replacement, preserves non-fatal
+diagnostics, and excludes the configured output directory from repeated scans. Import
+resolution, Markdown semantic extraction, and `CODEBASE_OVERVIEW.md` remain unfinished.
+Milestone 1 remains active; the next slice is Milestone 1.4A — Basic deterministic Markdown
+extraction.
 
 ## Development
 
@@ -38,8 +43,11 @@ Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 uv sync --dev
 uv run repolens --version
 uv run repolens doctor
+uv run repolens index path/to/repository
 make check
 ```
+
+The index command writes `path/to/repository/repolens-out/graph.json` by default.
 
 Pip fallback:
 

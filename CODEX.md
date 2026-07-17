@@ -1,6 +1,6 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.3A in-memory repository graph assembly implemented
+Status: Milestone 1.3B CLI index and deterministic graph.json implemented
 Last updated: 2026-07-16
 
 ## Mission and user problem
@@ -189,7 +189,9 @@ registry is authoritative. Files without an extractor remain structural nodes an
 read. Python source uses `tokenize.open()` so encoding cookies are honored, with strict
 post-scan containment revalidation. Expected read/decode failures preserve the file node,
 emit a deterministic relative-path diagnostic, and do not block later files. This API does
-not write `graph.json`, resolve imports, or execute/import target code.
+not resolve imports or execute/import target code. M1.3B exposes it through
+`repolens index PATH`, canonically serializes the complete `RepositoryIndexResult`, and
+atomically writes the configured `graph.json`.
 
 ## Resolver contracts
 
@@ -219,8 +221,11 @@ metrics/indexing.json
 metrics/evaluation.json
 ```
 
-`graph.json` is schema-versioned, UTF-8, canonical-keyed, and stably sorted. Generated dates
-are omitted from deterministic payloads or isolated outside compared content.
+`graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
+unresolved imports, scanner diagnostics, and extractor/source-loading diagnostics. It is
+UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
+dates and machine paths are omitted. The CLI writes a flushed temporary sibling and uses
+atomic replacement so an expected failure cannot expose a partially written final file.
 
 The overview targets about 8,000 tokens by default and contains summary, languages and
 frameworks, entry points, modules, important symbols, frontend routes/components, backend
@@ -249,8 +254,10 @@ repolens eval
 repolens doctor
 ```
 
-Milestone 0 also exposes `repolens harness-smoke`. Unimplemented commands exit nonzero with
-a message naming the target milestone; they never emit fake artifacts.
+Milestone 0 also exposes `repolens harness-smoke`. `repolens index PATH` is implemented in
+M1.3B with default output `<repository>/repolens-out/graph.json`; other unimplemented
+commands exit nonzero with a message naming the target milestone and never emit fake
+artifacts.
 
 Later MCP tools are `get_codebase_overview`, `find_symbol`, `get_symbol_context`,
 `trace_dependency_path`, and `analyze_change_impact`. MCP handlers validate transport
@@ -534,6 +541,15 @@ syntax trees and require controlled gold migrations.
 - **2026-07-16 — Registry selection precedes source loading.** The default registry contains
   Python only, an injected registry is not mutated, and files with no extractor are never
   decoded. Python reads use `tokenize.open()` plus a repeated containment check.
+- **2026-07-16 — graph.json stores the complete index result.** Serializing only
+  `GraphSnapshot` would lose unresolved imports and diagnostics, so the existing canonical
+  encoder now supports `RepositoryIndexResult` without a parallel handwritten schema.
+- **2026-07-16 — CLI graph writes are atomic.** The command serializes in memory, writes and
+  syncs `.graph.json.tmp`, closes it, then replaces the final path. Expected failures clean
+  the temporary file when practical and never print success.
+- **2026-07-16 — Configured output is pruned before scanner accounting.** A strict
+  repository-descendant output directory is excluded top-down so preserved source-like
+  files there cannot consume limits or enter repeated indexes.
 
 ## Progress
 
@@ -548,8 +564,9 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next active slice: Milestone 1.3B — CLI index command and deterministic `graph.json`
-output. Milestone 1 remains active.
+Next active slice: Milestone 1.4A — Basic deterministic Markdown extraction. Milestone 1
+remains active because its authoritative contract still requires Markdown hierarchy,
+links, fenced blocks, and code references.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -628,6 +645,57 @@ output. Milestone 1 remains active.
   determinism, integrity, encoding, limit, ignore, and non-execution behaviors.
 - [x] Completed the full M1.3A validation record; the developer learning checkpoint remains
   the handoff question for review.
+
+### Milestone 1.3B — CLI index and deterministic graph.json
+
+- [x] Replaced the `index` placeholder with a Typer-validated repository argument and the
+  existing M1.3A pipeline.
+- [x] Added canonical complete-result serialization and validation while preserving the
+  graph-only serialization API.
+- [x] Resolved relative output under the repository, retained absolute configured output,
+  created missing parents, and atomically replaced `graph.json`.
+- [x] Kept file-level diagnostics non-fatal and serialized while invalid invocation,
+  root-level, output, write, and unexpected pipeline failures exit non-zero.
+- [x] Pruned the configured in-repository output directory before scanner descent and
+  resource accounting without deleting preserved files.
+- [x] Added focused CLI, serialization, scanner, determinism, failure, and non-execution
+  tests and completed the full validation/manual-smoke record.
+
+## Milestone 1.3B validation record
+
+Validated locally on 2026-07-16 from the repository root with Python 3.11.15:
+
+- `uv run ruff format .` — exit 0; the final run reformatted 1 file and left 41 unchanged.
+- `uv run ruff format --check .` — exit 0; 42 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 28 source files.
+- `uv run pytest tests/test_cli.py -v` — exit 0; 16 passed; CLI coverage was 84%.
+- `uv run pytest tests/test_indexer.py -v` — exit 0; 21 passed; indexer coverage was 92%.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; Python extractor
+  coverage was 96%.
+- `uv run pytest tests/test_scanner.py -v` — exit 0; 31 passed and 3 existing real-symlink
+  integrations skipped because Windows returned privilege error 1314; scanner coverage was
+  96%.
+- `uv run pytest` — exit 0; 119 passed and the same 3 scanner integrations skipped; total
+  coverage was 92%, complete-result serialization coverage was 100%, CLI coverage was 84%,
+  and indexer coverage was 92%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; only LF-to-CRLF working-copy warnings were printed for six
+  modified tracked files.
+- `git status --short` — exactly the ten planned M1.3B paths were modified or untracked.
+
+The manual temporary-repository smoke ran `uv run repolens index <path>` twice. Both runs
+reported 2 files, 5 nodes, 4 edges, 1 unresolved import, and 0 warnings. `graph.json` parsed
+with zero diagnostics, the two byte sequences were identical, no absolute repository path
+appeared in the JSON, and the file ended with a newline. The verified temporary directory
+was removed afterward.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips are unchanged M1.1 Windows symlink-privilege limitations;
+every M1.3B test ran and passed.
 
 ## Milestone 1.3A validation record
 
@@ -896,6 +964,10 @@ claim `make check` ran.
   full suite passed 105 tests, retained the same 3 Windows scanner-symlink skips, and
   reported 92% total coverage. No M1.3A test was skipped, and the final worktree contained
   exactly the six planned paths.
+- **2026-07-16:** M1.3B focused CLI tests passed all 16 cases, the full suite passed 119
+  tests with the same 3 Windows scanner-symlink skips, and total coverage remained 92%.
+  A manual two-run CLI smoke produced byte-identical complete JSON without an absolute
+  repository path; the final worktree contained exactly the ten planned paths.
 
 ## Final portfolio deliverables
 

@@ -550,3 +550,22 @@ def test_supported_suffixes_override_is_normalized(tmp_path: Path) -> None:
 
     assert result.files == (SourceFile(relative_path="notes.TXT", suffix=".txt", size_bytes=5),)
     assert result.total_bytes == 5
+
+
+def test_configured_output_directory_is_pruned_before_limits(tmp_path: Path) -> None:
+    output_file = write_file(tmp_path, "a-output/preserved.py", "output")
+    write_file(tmp_path, "z-source/visible.py", "v")
+    config = RuntimeConfig(
+        output_directory=Path("a-output"),
+        maximum_file_count=1,
+        maximum_repository_bytes=1,
+    )
+
+    result = scan_repository(tmp_path, config)
+
+    assert result.files == (
+        SourceFile(relative_path="z-source/visible.py", suffix=".py", size_bytes=1),
+    )
+    assert result.total_bytes == 1
+    assert result.diagnostics == ()
+    assert output_file.read_text(encoding="utf-8") == "output"
