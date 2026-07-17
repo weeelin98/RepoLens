@@ -30,10 +30,15 @@ respecting ignore, resource, encoding, and symlink boundaries.
 
 Milestone 1.3B implements `repolens index PATH`. It writes the complete deterministic index
 to `<repository>/repolens-out/graph.json` using atomic replacement, preserves non-fatal
-diagnostics, and excludes the configured output directory from repeated scans. Import
-resolution, Markdown semantic extraction, and `CODEBASE_OVERVIEW.md` remain unfinished.
-Milestone 1 remains active; the next slice is Milestone 1.4A — Basic deterministic Markdown
-extraction.
+diagnostics, and excludes the configured output directory from repeated scans.
+
+Milestone 1.4A adds deterministic CommonMark extraction for accepted `.md` files. The graph
+now includes one Markdown document node, ATX/Setext section nodes, heading containment, and
+typed unresolved link, fenced-code, and inline-code facts. Links and code references are
+not resolved, fenced code is never executed or recursively parsed, and inline syntax keeps
+line-level evidence when parser columns are unavailable. Import resolution and
+`CODEBASE_OVERVIEW.md` remain unfinished. Milestone 1 remains active; the next slice is
+Milestone 1.4B — Deterministic project metadata extraction.
 
 ## Development
 

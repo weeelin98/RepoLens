@@ -58,10 +58,14 @@ def test_index_empty_repository_creates_default_graph_and_reports_counts(tmp_pat
     assert str(output) in result.output
 
 
-def test_index_serializes_python_imports_markdown_and_ignores(tmp_path: Path) -> None:
+def test_index_serializes_python_imports_markdown_facts_and_ignores(tmp_path: Path) -> None:
     write_file(tmp_path, ".gitignore", "ignored.py\n")
     write_file(tmp_path, "app.py", "import os\n\ndef load():\n    pass\n")
-    write_file(tmp_path, "README.md", "# Guide\n")
+    write_file(
+        tmp_path,
+        "README.md",
+        "# Guide\n\nUse [`load`](app.py).\n\n```python\nload()\n```\n",
+    )
     write_file(tmp_path, "ignored.py", "def hidden():\n    pass\n")
 
     result = runner.invoke(app, ["index", str(tmp_path)])
@@ -74,11 +78,33 @@ def test_index_serializes_python_imports_markdown_and_ignores(tmp_path: Path) ->
     assert "app.load" in qualified_names
     assert payload["imports"][0]["module"] == "os"
     assert "README.md" in source_paths
+    assert "README.md/Guide" in qualified_names
     assert "ignored.py" not in source_paths
+    assert [fact["kind"] for fact in payload["markdown_facts"]] == [
+        "link",
+        "inline_code",
+        "fenced_code",
+    ]
+    assert payload["markdown_facts"][0]["target"] == "app.py"
+    assert payload["markdown_facts"][2]["language"] == "python"
     assert str(tmp_path) not in serialized
     assert "def load" not in serialized
     assert serialized.endswith("\n")
-    assert "files=2, nodes=5, edges=4, imports=1, warnings=0" in result.output
+    assert "files=2, nodes=7, edges=6, imports=1, warnings=0" in result.output
+
+
+def test_repeated_markdown_index_is_byte_identical_without_absolute_paths(tmp_path: Path) -> None:
+    write_file(tmp_path, "docs/guide.md", "# Guide\n\nSee [API](../api.md). Use `load`.\n")
+
+    first_result = runner.invoke(app, ["index", str(tmp_path)])
+    first = graph_path(tmp_path).read_bytes()
+    second_result = runner.invoke(app, ["index", str(tmp_path)])
+    second = graph_path(tmp_path).read_bytes()
+
+    assert first_result.exit_code == second_result.exit_code == 0
+    assert first == second
+    assert str(tmp_path).encode() not in second
+    assert b'"markdown_facts"' in second
 
 
 def test_index_nonfatal_syntax_diagnostic_writes_graph_and_succeeds(tmp_path: Path) -> None:

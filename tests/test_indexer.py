@@ -96,21 +96,23 @@ def test_nested_python_file_creates_deterministic_directory_hierarchy(tmp_path: 
     }
 
 
-def test_markdown_file_has_structure_without_module_or_content_read(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    write_file(tmp_path, "README.md", "# Guide")
+def test_markdown_file_builds_file_document_and_heading_hierarchy(tmp_path: Path) -> None:
+    markdown_path = write_file(tmp_path, "docs/README.md", "# Guide\n\n### Install\n")
 
-    def unexpected_open(filename: str | Path) -> IO[str]:
-        raise AssertionError(f"Markdown must not be read: {filename}")
-
-    monkeypatch.setattr(tokenize, "open", unexpected_open)
     result = index_repository(tmp_path, RuntimeConfig())
 
-    file_node = node_for_path(result, NodeKind.FILE, "README.md")
+    file_node = node_for_path(result, NodeKind.FILE, "docs/README.md")
+    document = node_for_path(result, NodeKind.MARKDOWN_DOCUMENT, "docs/README.md")
+    sections = nodes_of_kind(result, NodeKind.MARKDOWN_SECTION)
+    by_label = {node.label: node for node in sections}
+    edge_pairs = {(edge.source_id, edge.target_id) for edge in result.graph.edges}
+
     assert file_node.language == "markdown"
-    assert file_node.metadata == {"size_bytes": 7, "suffix": ".md"}
+    assert file_node.metadata == {"size_bytes": markdown_path.stat().st_size, "suffix": ".md"}
+    assert document.language == "markdown"
+    assert (file_node.id, document.id) in edge_pairs
+    assert (document.id, by_label["Guide"].id) in edge_pairs
+    assert (by_label["Guide"].id, by_label["Install"].id) in edge_pairs
     assert nodes_of_kind(result, NodeKind.MODULE) == ()
 
 
@@ -180,13 +182,16 @@ def test_unresolved_import_facts_are_preserved_without_import_edges(tmp_path: Pa
 
 
 def test_ignored_files_never_appear(tmp_path: Path) -> None:
-    write_file(tmp_path, ".gitignore", "ignored.py\n")
+    write_file(tmp_path, ".gitignore", "ignored.py\nignored.md\n")
     write_file(tmp_path, "ignored.py", "def hidden():\n    pass\n")
+    write_file(tmp_path, "ignored.md", "# Hidden\n")
     write_file(tmp_path, "visible.py", "")
 
     result = index_repository(tmp_path, RuntimeConfig())
 
     assert "ignored.py" not in {node.source_path for node in result.graph.nodes}
+    assert "ignored.md" not in {node.source_path for node in result.graph.nodes}
+    assert all(fact.source_path != "ignored.md" for fact in result.markdown_facts)
     assert node_for_path(result, NodeKind.FILE, "visible.py")
 
 

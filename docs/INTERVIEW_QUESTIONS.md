@@ -74,3 +74,16 @@
    preserving them in output?
 7. Why must the configured output directory be pruned before scanner resource accounting
    rather than filtered after scanning?
+
+## Milestone 1.4A — Basic Deterministic Markdown Extraction
+
+1. How do CommonMark block tokens and inline child tokens expose different source evidence?
+2. How does the heading stack attach same-level, nested, and skipped-level headings?
+3. Why must repeated heading names include source position in their stable IDs?
+4. Why do Markdown links remain unresolved facts instead of `references` graph edges?
+5. Why is fenced code recorded as bounded metadata rather than executed or parsed again?
+6. How does inline-code syntax differ from a resolved symbol, path, command, or call?
+7. Why is a containing block line span more honest than searching source for an inline
+   token and claiming exact columns?
+8. How do Markdown document/section nodes and unresolved facts flow into canonical
+   `graph.json` without absolute repository paths?

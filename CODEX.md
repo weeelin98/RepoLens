@@ -1,7 +1,7 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1.3B CLI index and deterministic graph.json implemented
-Last updated: 2026-07-16
+Status: Milestone 1.4A basic deterministic Markdown extraction implemented
+Last updated: 2026-07-17
 
 ## Mission and user problem
 
@@ -160,6 +160,9 @@ An extractor declares supported extensions and accepts a normalized source recor
 returns nodes, direct edges, diagnostics, and unresolved syntax facts without side effects.
 `ExtractionResult.imports` holds immutable unresolved import facts; it never implies a
 resolved target node or graph edge.
+`ExtractionResult.markdown_facts` similarly holds immutable unresolved links, fenced-code
+blocks, and inline-code syntax. Their containing Markdown section may be known while their
+referenced target remains unresolved, so they do not become `references` edges.
 Output order is irrelevant because the graph boundary sorts it. Invalid syntax produces a
 diagnostic and partial results only when correctness can be maintained.
 
@@ -184,14 +187,16 @@ POSIX paths. New structural containment is repository-to-directory/file,
 directory-to-directory/file, and Python-file-to-module. All such edges are syntax-direct
 with confidence 1.0. Extractor module/symbol containment is retained unchanged.
 
-The default registry is fresh per call and contains only `PythonExtractor`; an injected
-registry is authoritative. Files without an extractor remain structural nodes and are not
-read. Python source uses `tokenize.open()` so encoding cookies are honored, with strict
-post-scan containment revalidation. Expected read/decode failures preserve the file node,
-emit a deterministic relative-path diagnostic, and do not block later files. This API does
-not resolve imports or execute/import target code. M1.3B exposes it through
+The default registry is fresh per call and contains `PythonExtractor` and
+`MarkdownExtractor`; an injected registry is authoritative. Files without an extractor
+remain structural nodes and are not read. Supported source uses the existing contained
+`tokenize.open()` loader, so Python encoding cookies remain honored and ordinary Markdown
+is decoded as UTF-8. Expected read/decode failures preserve the file node, emit a
+deterministic relative-path diagnostic, and do not block later files. This API does not
+resolve imports/references or execute/import target code. M1.3B exposes it through
 `repolens index PATH`, canonically serializes the complete `RepositoryIndexResult`, and
-atomically writes the configured `graph.json`.
+atomically writes the configured `graph.json`. M1.4A adds file-to-document containment,
+Markdown heading hierarchy, and unresolved Markdown facts to that same result.
 
 ## Resolver contracts
 
@@ -222,7 +227,8 @@ metrics/evaluation.json
 ```
 
 `graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
-unresolved imports, scanner diagnostics, and extractor/source-loading diagnostics. It is
+unresolved imports, unresolved Markdown facts, scanner diagnostics, and
+extractor/source-loading diagnostics. It is
 UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
 dates and machine paths are omitted. The CLI writes a flushed temporary sibling and uses
 atomic replacement so an expected failure cannot expose a partially written final file.
@@ -550,6 +556,14 @@ syntax trees and require controlled gold migrations.
 - **2026-07-16 — Configured output is pruned before scanner accounting.** A strict
   repository-descendant output directory is excluded top-down so preserved source-like
   files there cannot consume limits or enter repeated indexes.
+- **2026-07-17 — M1.4A uses `markdown-it-py` CommonMark tokens.** The constrained
+  `markdown-it-py>=4.2,<5` dependency supplies structured ATX/Setext headings, links,
+  fences, inline code, and block line maps. Inline child columns are not exposed, so facts
+  retain conservative containing-block line evidence instead of searched/guessed columns.
+- **2026-07-17 — Unresolved Markdown syntax remains outside the graph.** One typed
+  `UnresolvedMarkdownFact` contract preserves links, fenced code, inline code, source
+  occurrence, and nearest section. `REFERENCES` edges remain deferred because graph
+  endpoints cannot be fabricated solely to satisfy the edge model.
 
 ## Progress
 
@@ -564,9 +578,9 @@ syntax trees and require controlled gold migrations.
 - [x] Added tests, tooling, CI, and ran the full validation loop.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
-Next active slice: Milestone 1.4A — Basic deterministic Markdown extraction. Milestone 1
-remains active because its authoritative contract still requires Markdown hierarchy,
-links, fenced blocks, and code references.
+Next active slice: Milestone 1.4B — Deterministic project metadata extraction. Milestone 1
+remains active because its authoritative contract still requires metadata extraction and
+later graph/resolution behavior.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -660,6 +674,56 @@ links, fenced blocks, and code references.
   resource accounting without deleting preserved files.
 - [x] Added focused CLI, serialization, scanner, determinism, failure, and non-execution
   tests and completed the full validation/manual-smoke record.
+
+### Milestone 1.4A — Basic deterministic Markdown extraction
+
+- [x] Added a `.md` extractor backed by constrained `markdown-it-py` CommonMark tokens.
+- [x] Added one stable document node per Markdown file plus ATX/Setext section nodes and
+  nearest-lower-level syntax-direct containment.
+- [x] Added typed unresolved link, fenced-code, and inline-code facts with nearest-section
+  association, deterministic occurrence order, and no target fabrication or execution.
+- [x] Preserved block line maps honestly; document columns are exact while heading, link,
+  fence, and inline child columns remain unavailable rather than guessed.
+- [x] Registered Markdown through the existing extractor registry, added file-to-document
+  containment, and included sorted Markdown facts in canonical `graph.json`.
+- [x] Added focused extractor, indexer, and CLI coverage for hierarchy, syntax, ignore,
+  determinism, path privacy, recovery, non-execution, and unchanged Python behavior.
+
+## Milestone 1.4A validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- `uv sync --dev --locked` — exit 0; 26 packages resolved and 25 packages checked.
+- `uv run ruff format .` — exit 0; 44 files left unchanged.
+- `uv run ruff format --check .` — exit 0; 44 files already formatted.
+- `uv run ruff check .` — exit 0; all checks passed.
+- `uv run mypy src tests` — exit 0; no issues in 30 source files.
+- `uv run pytest tests/test_markdown_extractor.py -v` — exit 0; 24 passed; Markdown
+  extractor coverage was 93%.
+- `uv run pytest tests/test_extractors.py -v` — exit 0; 34 passed; Python extractor
+  coverage was 96%.
+- `uv run pytest tests/test_indexer.py -v` — exit 0; 21 passed; indexer coverage was 92%.
+- `uv run pytest tests/test_cli.py -v` — exit 0; 17 passed; CLI coverage was 84%.
+- `uv run pytest` — exit 0; 144 passed and 3 existing scanner integrations skipped
+  because Windows returned symlink privilege error 1314; total coverage was 92%, Markdown
+  extractor coverage was 93%, and complete-result serialization coverage was 100%.
+- `uv run repolens harness-smoke` — exit 0; 5 fixtures, 5 questions, and 5 diff cases were
+  valid.
+- `uv run repolens doctor` — exit 0; Python 3.11.15 and package 0.1.0 were healthy; no
+  network is required.
+- `git diff --check` — exit 0; no whitespace errors.
+- `git status --short` — exactly 13 planned M1.4A paths were modified or untracked.
+
+The manual Markdown fixture smoke indexed
+`harness/fixtures/markdown_documented_project` twice. Both runs reported 2 files, 11 nodes,
+10 edges, 0 unresolved imports, and 0 warnings. Inspection found 1 Markdown document, 3
+sections, 3 Markdown hierarchy edges, and `inline_code`, `link`, and `fenced_code` facts.
+The output was byte-identical, contained no absolute fixture path, ended with a newline,
+and the generated output directory was removed afterward.
+
+GNU Make is unavailable in the documented Windows shell. This record does not claim
+`make check` ran. The three skips are unchanged M1.1 Windows symlink-privilege limitations;
+every M1.4A test ran and passed.
 
 ## Milestone 1.3B validation record
 
