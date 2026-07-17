@@ -34,12 +34,18 @@ EXPECTED_COUNTS = {
     "typescript_frontend": (2, 1, 0, 0),
 }
 runner = CliRunner()
+M1_POST_MILESTONE_IGNORE = "*.js\n*.ts\n"
 
 
 def _copy_fixture_repository(tmp_path: Path, fixture_id: str) -> Path:
     source = FIXTURES_ROOT / fixture_id / "repo"
     repository = tmp_path / fixture_id
     shutil.copytree(source, repository)
+    (repository / ".gitignore").write_text(
+        M1_POST_MILESTONE_IGNORE,
+        encoding="utf-8",
+        newline="\n",
+    )
     return repository
 
 
@@ -96,6 +102,10 @@ def _assert_graph_integrity(
     assert edges == tuple(sorted(edges, key=lambda edge: edge.sort_key()))
     assert result == parse_index_json(rendered.decode("utf-8"))
     assert canonical_index_json(result).encode("utf-8") == rendered
+    assert result.esm_imports == ()
+    assert result.esm_exports == ()
+    assert b'"esm_imports"' not in rendered
+    assert b'"esm_exports"' not in rendered
     assert str(repository).encode("utf-8") not in rendered
     assert b"timestamp" not in rendered.lower()
     for node in nodes:

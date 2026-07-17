@@ -118,3 +118,22 @@
    an invalid root remains fatal?
 7. Why is the completed M1 result a syntax/direct-fact graph rather than a resolved import,
    call, or dependency graph?
+
+## Milestone 2.1A — Tree-sitter JavaScript/TypeScript Foundation
+
+1. Why do compatible tree-sitter runtime and grammar ABI versions matter more than matching
+   package version numbers?
+2. How do tree-sitter zero-based UTF-8 byte points map to RepoLens `SourceSpan` lines,
+   columns, and exclusive end coordinates?
+3. Why do JavaScript/TypeScript stable IDs add the declaration start column to the existing
+   path, qualified-name, and start-line inputs?
+4. Why do ESM imports and exports use channels separate from Python import facts, and why do
+   none of those direct facts create target graph edges yet?
+5. How does an error-recovering tree-sitter parse permit defensible partial facts when
+   Python `ast.parse()` rejects the whole module?
+6. Why are anonymous functions/classes, generators, constructors, accessors, namespaces,
+   modules, and ambient declarations treated as scope barriers in this slice?
+7. How does field-level omission of empty ESM tuples preserve byte-identical M1 gold while
+   still allowing old JSON to parse into the expanded result model?
+8. Which boundaries keep `.jsx`, `.tsx`, CommonJS, re-exports, calls, and resolution out of
+   M2.1A, and what evidence would be needed before adding each later?

@@ -341,3 +341,74 @@ def test_output_directory_resolution_supports_relative_and_absolute_paths(tmp_pa
 
     assert relative == tmp_path / "custom/output"
     assert absolute == absolute_path
+
+
+def test_index_serializes_js_ts_facts_repeatedly_without_paths_or_execution(
+    tmp_path: Path,
+) -> None:
+    sentinel = tmp_path / "executed.txt"
+    write_file(
+        tmp_path,
+        "src/app.js",
+        "import primary, { request as send } from './client.js';\n"
+        f"globalThis.writeFile?.({str(sentinel)!r}, 'executed');\n"
+        "export const load = () => send();\n",
+    )
+    write_file(
+        tmp_path,
+        "src/service.ts",
+        "export default class Service { async run(): Promise<void> {} }\n",
+    )
+    write_file(
+        tmp_path,
+        "src/ignored.tsx",
+        "export const Component = () => <main />;\n",
+    )
+
+    first_result = runner.invoke(app, ["index", str(tmp_path)])
+    first = graph_path(tmp_path).read_bytes()
+    second_result = runner.invoke(app, ["index", str(tmp_path)])
+    second = graph_path(tmp_path).read_bytes()
+    payload = json.loads(second)
+    parsed = parse_index_json(second.decode("utf-8"))
+
+    assert first_result.exit_code == second_result.exit_code == 0
+    assert first == second
+    assert "imports=2" in second_result.output
+    assert [fact["kind"] for fact in payload["esm_imports"]] == ["default", "named"]
+    assert [fact["exported_name"] for fact in payload["esm_exports"]] == [
+        "load",
+        "default",
+    ]
+    assert {node.qualified_name for node in parsed.graph.nodes} >= {
+        "src.app",
+        "src.app.load",
+        "src.service",
+        "src.service.Service",
+        "src.service.Service.run",
+    }
+    assert all(node.source_path != "src/ignored.tsx" for node in parsed.graph.nodes)
+    assert str(tmp_path).encode() not in second
+    assert not sentinel.exists()
+
+
+def test_index_malformed_javascript_serializes_conservative_partial_result(
+    tmp_path: Path,
+) -> None:
+    write_file(
+        tmp_path,
+        "broken.js",
+        "function before() {}\n}\nfunction after() {}\n",
+    )
+
+    result = runner.invoke(app, ["index", str(tmp_path)])
+    parsed = parse_index_json(graph_path(tmp_path).read_text(encoding="utf-8"))
+
+    assert result.exit_code == 0
+    assert parsed.extractor_diagnostics == ("tree_sitter_syntax_error:broken.js:2:0",)
+    assert {node.qualified_name for node in parsed.graph.nodes} >= {
+        "broken",
+        "broken.before",
+        "broken.after",
+    }
+    assert "warnings=1" in result.output

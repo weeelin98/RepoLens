@@ -21,6 +21,22 @@ class ImportFactKind(StrEnum):
     FROM_IMPORT = "from_import"
 
 
+class EsmImportKind(StrEnum):
+    """ECMAScript import forms preserved before module resolution."""
+
+    SIDE_EFFECT = "side_effect"
+    DEFAULT = "default"
+    NAMESPACE = "namespace"
+    NAMED = "named"
+
+
+class EsmExportKind(StrEnum):
+    """Supported local ECMAScript export forms."""
+
+    DECLARATION = "declaration"
+    LIST = "list"
+
+
 class MarkdownFactKind(StrEnum):
     """Direct Markdown syntax forms that remain unresolved during extraction."""
 
@@ -101,6 +117,88 @@ class UnresolvedImportFact(BaseModel):
             self.alias or "",
             self.relative_level,
             self.is_star,
+        )
+
+
+def _normalize_fact_source_path(value: str) -> str:
+    if PureWindowsPath(value).is_absolute():
+        raise ValueError("fact source path must be repository-relative")
+    normalized = normalize_repo_path(value)
+    if normalized == ".":
+        raise ValueError("fact source path must name a file")
+    return normalized
+
+
+class UnresolvedEsmImportFact(BaseModel):
+    """One direct ESM import binding without a resolved target."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: EsmImportKind
+    module: str = Field(min_length=1)
+    imported_name: str | None = Field(default=None, min_length=1)
+    local_name: str | None = Field(default=None, min_length=1)
+    source_path: str = Field(min_length=1)
+    span: SourceSpan
+
+    _source_path_is_relative = field_validator("source_path")(_normalize_fact_source_path)
+
+    @model_validator(mode="after")
+    def validate_import_form(self) -> Self:
+        if self.kind is EsmImportKind.SIDE_EFFECT:
+            if self.imported_name is not None or self.local_name is not None:
+                raise ValueError("side-effect imports cannot contain binding names")
+        elif self.kind is EsmImportKind.DEFAULT:
+            if self.imported_name != "default" or self.local_name is None:
+                raise ValueError("default imports require the default and local names")
+        elif self.kind is EsmImportKind.NAMESPACE:
+            if self.imported_name != "*" or self.local_name is None:
+                raise ValueError("namespace imports require '*' and a local name")
+        elif self.imported_name is None or self.local_name is None:
+            raise ValueError("named imports require imported and local names")
+        return self
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.span.start_line,
+            self.span.start_column if self.span.start_column is not None else -1,
+            self.kind.value,
+            self.module,
+            self.imported_name or "",
+            self.local_name or "",
+        )
+
+
+class UnresolvedEsmExportFact(BaseModel):
+    """One supported local ESM export without resolution or an export edge."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: EsmExportKind
+    exported_name: str = Field(min_length=1)
+    local_name: str = Field(min_length=1)
+    is_default: bool = False
+    source_path: str = Field(min_length=1)
+    span: SourceSpan
+
+    _source_path_is_relative = field_validator("source_path")(_normalize_fact_source_path)
+
+    @model_validator(mode="after")
+    def validate_export_form(self) -> Self:
+        if self.is_default != (self.exported_name == "default"):
+            raise ValueError("is_default must match the exported 'default' name")
+        return self
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.span.start_line,
+            self.span.start_column if self.span.start_column is not None else -1,
+            self.kind.value,
+            self.exported_name,
+            self.local_name,
+            self.is_default,
         )
 
 
@@ -222,6 +320,8 @@ class ExtractionResult(BaseModel):
     nodes: tuple[GraphNode, ...] = ()
     edges: tuple[GraphEdge, ...] = ()
     imports: tuple[UnresolvedImportFact, ...] = ()
+    esm_imports: tuple[UnresolvedEsmImportFact, ...] = ()
+    esm_exports: tuple[UnresolvedEsmExportFact, ...] = ()
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
     metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     diagnostics: tuple[str, ...] = ()

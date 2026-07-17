@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -19,12 +20,20 @@ FIXTURE_IDS = (
     "typescript_frontend",
 )
 GOLD_FILENAME = "m1-graph.json"
+M1_POST_MILESTONE_IGNORE = "*.js\n*.ts\n"
 
 
 def _generated_graph(fixture_id: str, temporary_root: Path) -> str:
-    repository = PROJECT_ROOT / "harness" / "fixtures" / fixture_id / "repo"
+    source = PROJECT_ROOT / "harness" / "fixtures" / fixture_id / "repo"
+    repository = temporary_root / fixture_id / "repo"
+    shutil.copytree(source, repository)
+    (repository / ".gitignore").write_text(
+        M1_POST_MILESTONE_IGNORE,
+        encoding="utf-8",
+        newline="\n",
+    )
     generated_path = temporary_root / fixture_id / "graph.json"
-    generated_path.parent.mkdir(parents=True)
+    generated_path.parent.mkdir(parents=True, exist_ok=True)
     rendered = canonical_index_json(index_repository(repository, RuntimeConfig()))
     generated_path.write_text(rendered, encoding="utf-8", newline="\n")
     validated = parse_index_json(generated_path.read_text(encoding="utf-8"))

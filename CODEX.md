@@ -1,7 +1,7 @@
 # RepoLens Living Project Specification
 
 Status: Milestone 1 complete; Linux CI verified.
-Next active milestone: Milestone 2 — JavaScript, TypeScript, JSX, and TSX extraction
+Next active slice: Milestone 2.1B — CommonJS, re-exports, and additional TypeScript declarations
 Last updated: 2026-07-17
 
 ## Mission and user problem
@@ -161,6 +161,9 @@ An extractor declares supported extensions and accepts a normalized source recor
 returns nodes, direct edges, diagnostics, and unresolved syntax facts without side effects.
 `ExtractionResult.imports` holds immutable unresolved import facts; it never implies a
 resolved target node or graph edge.
+`ExtractionResult.esm_imports` and `ExtractionResult.esm_exports` separately preserve
+direct JavaScript/TypeScript ESM syntax because Python relative-import fields do not model
+ESM accurately. These channels likewise imply neither a resolved target nor graph edge.
 `ExtractionResult.markdown_facts` similarly holds immutable unresolved links, fenced-code
 blocks, and inline-code syntax. Their containing Markdown section may be known while their
 referenced target remains unresolved, so they do not become `references` edges.
@@ -191,7 +194,8 @@ directory-to-directory/file, and Python-file-to-module. All such edges are synta
 with confidence 1.0. Extractor module/symbol containment is retained unchanged.
 
 The default registry is fresh per call and contains `PythonExtractor`,
-`MarkdownExtractor`, and `ProjectMetadataExtractor`; an injected registry is authoritative.
+`JavaScriptTypeScriptExtractor`, `MarkdownExtractor`, and `ProjectMetadataExtractor`; an
+injected registry is authoritative.
 Files without an extractor
 remain structural nodes and are not read. Supported source uses the existing contained
 `tokenize.open()` loader, so Python encoding cookies remain honored and ordinary Markdown
@@ -233,8 +237,8 @@ metrics/evaluation.json
 ```
 
 `graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
-unresolved imports, unresolved Markdown facts, direct project metadata facts, scanner
-diagnostics, and
+unresolved Python and ESM import/export facts, unresolved Markdown facts, direct project
+metadata facts, scanner diagnostics, and
 extractor/source-loading diagnostics. It is
 UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
 dates and machine paths are omitted. The CLI writes a flushed temporary sibling and uses
@@ -588,6 +592,17 @@ syntax trees and require controlled gold migrations.
 - **2026-07-17 — M1 acceptance portability is fixture-scoped.** PR #2 normalizes only
   committed harness fixture text and M1 gold to LF, and corrects the CLI non-execution
   test's contradictory absolute-path input without changing production extraction.
+- **2026-07-17 — M2.1A uses pinned compatible tree-sitter wheels.** Runtime 0.26.0 accepts
+  grammar ABI 13–15; JavaScript 0.25.0 reports ABI 15 and TypeScript 0.23.2 reports ABI 14.
+  A fresh parser is constructed per extraction and no Node/TypeScript process is invoked.
+- **2026-07-17 — ESM facts remain separate unresolved channels.** Side-effect, default,
+  namespace, and named imports plus direct local declaration/list exports preserve syntax
+  without target lookup or `IMPORTS`/`EXPORTS` edges. Empty channels use `exclude_if`, so
+  M1 canonical bytes remain unchanged.
+- **2026-07-17 — Erroneous and unsupported scopes are barriers.** Only error-free subtrees
+  contribute facts. Anonymous functions/classes, generators, constructors, accessors,
+  TypeScript namespaces/modules, and ambient declarations cannot leak nested definitions
+  under a false extracted parent.
 
 ## Progress
 
@@ -603,8 +618,8 @@ syntax trees and require controlled gold migrations.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
 Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
-`28ad7fab44fa08d66934dacf541f9b366db14673`. Next active milestone: Milestone 2 —
-JavaScript, TypeScript, JSX, and TSX extraction.
+`28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
+and the next active slice is M2.1B. JSX/TSX and later extraction work remain open.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -743,6 +758,60 @@ JavaScript, TypeScript, JSX, and TSX extraction.
   fixture/gold text to LF and correcting the contradictory absolute-path CLI test input.
 - [x] Verified the complete M1 acceptance suite on Linux through PR #2 at commit
   `28ad7fab44fa08d66934dacf541f9b366db14673`; the required CI check passed.
+
+### Milestone 2.1A — Tree-sitter foundation and basic JavaScript/TypeScript extraction (complete)
+
+- [x] Locked tree-sitter 0.26.0, JavaScript grammar 0.25.0, and TypeScript grammar 0.23.2
+  after real parser and ABI verification.
+- [x] Added exactly `.js`/`.ts` discovery and one side-effect-free extractor for module,
+  named function/async-function, class, ordinary method, and identifier-arrow nodes.
+- [x] Added stable qualified names, column-disambiguated IDs, exact byte-oriented spans,
+  nearest extracted-parent containment, and conservative partial-tree diagnostics.
+- [x] Added typed unresolved ESM import/export channels and integrated them through the
+  default registry, indexer, canonical serialization, and CLI counts without target edges.
+- [x] Preserved every M1 gold byte with an explicit historical scan profile and added the
+  separate TypeScript frontend `m2-1a-graph.json` partial snapshot.
+- [x] Added focused extractor/scanner/indexer/CLI/security/determinism tests and completed
+  the full offline validation plus two-run manual smoke. JSX/TSX and M2.1B remain open.
+- [x] Final review fixes omit statement-level and inline type-only ESM syntax while retaining
+  runtime specifiers in mixed clauses, and align the Pydantic floor with `exclude_if` at 2.12.
+
+Learning checkpoint: explain runtime/grammar ABI compatibility; byte-column/end-coordinate
+mapping; why ESM facts are not edges; why recoverable tree-sitter errors differ from a
+failed Python AST parse; and why unsupported anonymous/namespace/generator scopes are
+barriers rather than transparent containers. Also explain why erased TypeScript type-only
+imports and exports must not be reported as runtime ESM facts.
+
+## Milestone 2.1A validation record
+
+Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
+
+- Locked sync resolved 30 packages and checked 29. Ruff formatting/check and full lint
+  passed. Mypy reported no issues in 35 source files.
+- Focused suites passed: JS/TS extractor 29; existing extractors 36; scanner 35 plus 3
+  Windows error-1314 real-symlink skips; indexer 29; CLI 21; M1 acceptance 16.
+- Full pytest passed 224 tests, retained the same 3 Windows symlink skips, and reported 93%
+  total coverage. `javascript_typescript.py` reported 96% coverage.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  Python 3.11.15/package 0.1.0 healthy and no network requirement.
+- Two isolated CLI runs produced byte-identical SHA-256
+  `655dd2d175619d192c0befcc9a32e2cac719f507c29aa5dd67a0dae7bd185e45`, with 13 nodes,
+  12 edges, 1 ESM import, 2 ESM exports, and 1 expected syntax diagnostic. `.tsx` was
+  excluded and the temporary absolute repository path did not enter JSON.
+- All four M1 gold outputs stayed byte-identical; the separate TypeScript frontend M2.1A
+  partial gold matched. Milestone 2 remains open; the next proposed slice is M2.1B.
+
+Final pre-commit review fixes were validated locally on 2026-07-17 with Python 3.11.15:
+
+- `uv lock --offline` and `uv lock --check --offline` resolved 30 packages; Pydantic remained
+  locked at 2.13.4 under the corrected `>=2.12,<3` runtime range.
+- The JS/TS extractor suite passed 36 tests. Full pytest passed 231 tests with the same 3
+  Windows error-1314 symlink skips, 93% total coverage, and 96% extractor coverage.
+- Ruff format check, Ruff lint, Mypy, M1 acceptance, the four-fixture M1 gold checker,
+  harness-smoke, and doctor passed.
+- Two CLI indexes of a scratch TypeScript fixture produced byte-identical SHA-256
+  `974a462e02b18f82d3fbcb0067b302cbbaa9b1aaceaa3b2cd7e00398d533a817`; no absolute scratch
+  path entered JSON. This is local Windows validation, not Linux CI verification.
 
 ## Milestone 1.5 validation record
 
@@ -1094,6 +1163,14 @@ claim `make check` ran.
 
 ## Discovery and surprise log
 
+- **2026-07-17:** TypeScript class declarations expose `type_identifier` names while the
+  JavaScript grammar exposes `identifier`; the inherited visitor therefore missed all TS
+  classes until both shapes were handled.
+- **2026-07-17:** Generic traversal crossed bare TypeScript namespace/module and JavaScript
+  generator scopes, incorrectly promoting nested declarations to the module. Explicit
+  barriers now keep unsupported relationships unresolved rather than fabricating parents.
+- **2026-07-17:** Pydantic 2.13.4 field-level `exclude_if` preserves legacy canonical JSON
+  by omitting empty ESM channels while still parsing old output into default-empty tuples.
 - **2026-07-14:** The configured workspace path did not yet exist; it was created before
   repository initialization, so there were no useful existing files to preserve.
 - **2026-07-14:** System Python is 3.9.6, below the project floor, while `uv` 0.7.18 is
