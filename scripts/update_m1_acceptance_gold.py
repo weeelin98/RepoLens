@@ -20,7 +20,7 @@ FIXTURE_IDS = (
     "typescript_frontend",
 )
 GOLD_FILENAME = "m1-graph.json"
-M1_POST_MILESTONE_IGNORE = "*.js\n*.ts\n"
+M1_POST_MILESTONE_IGNORE = "*.js\n*.ts\n*.jsx\n*.tsx\n"
 
 
 def _generated_graph(fixture_id: str, temporary_root: Path) -> str:

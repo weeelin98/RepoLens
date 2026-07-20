@@ -34,7 +34,7 @@ EXPECTED_COUNTS = {
     "typescript_frontend": (2, 1, 0, 0),
 }
 runner = CliRunner()
-M1_POST_MILESTONE_IGNORE = "*.js\n*.ts\n"
+M1_POST_MILESTONE_IGNORE = "*.js\n*.ts\n*.jsx\n*.tsx\n"
 
 
 def _copy_fixture_repository(tmp_path: Path, fixture_id: str) -> Path:

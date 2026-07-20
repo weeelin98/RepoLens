@@ -85,14 +85,25 @@ byte-identical. PR #4's required Linux `check` job passed for implementation com
 https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
 Milestone 2 remains open, and no next slice has been selected.
 
+Milestone 2.2A adds discovery and pinned tree-sitter parsing for exactly `.jsx` and `.tsx`,
+with honest `jsx`/`tsx` language labels. It reuses the completed JavaScript/TypeScript
+visitor and conservatively reclassifies only named, top-level functions, arrows, and React
+classes that have exact direct-JSX-return evidence plus a runtime binding import from
+`react`. Each match is one `react_component` node; ordinary containment, spans, stable IDs,
+and direct export facts are preserved. Automatic-runtime files, async or nested components,
+wrappers such as `memo`/`forwardRef`, anonymous defaults, indirect returns, JSX element
+graphs, calls, and resolution remain outside this slice. The implementation is independently
+reviewed and locally validated on Windows; no Linux result is claimed yet.
+
 The current `graph.json` contains repository/directory/file structure, Python modules and
-definitions with spans and stable IDs, JavaScript/TypeScript modules and bounded definition
-facts, unresolved Python imports, ESM imports/exports/re-exports, bounded CommonJS
-occurrences, Markdown document/section
+definitions with spans and stable IDs, JavaScript/TypeScript/JSX/TSX modules and bounded
+definition facts, conservative React component classifications, unresolved Python imports,
+ESM imports/exports/re-exports, bounded CommonJS occurrences, Markdown document/section
 hierarchy and direct syntax facts, allowlisted direct project metadata, and deterministic
-diagnostics. It does not contain resolved imports/exports, calls, JSX/TSX symbols,
+diagnostics. It does not contain resolved imports/exports, calls, JSX element nodes,
 overview/query/impact results, or MCP behavior. Milestone 2 remains open; JSX/TSX, React
-classification, calls, and resolution require separately reviewed later slices.
+classification beyond the M2.2A boundary, calls, and resolution require separately reviewed
+later slices.
 
 ## Development
 

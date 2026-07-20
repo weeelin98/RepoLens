@@ -605,29 +605,35 @@ def test_configured_output_directory_is_pruned_before_limits(tmp_path: Path) -> 
     assert output_file.read_text(encoding="utf-8") == "output"
 
 
-def test_default_scanner_accepts_only_js_and_ts_from_javascript_family(
+def test_default_scanner_accepts_exact_js_family_suffixes(
     tmp_path: Path,
 ) -> None:
     write_file(tmp_path, "src/app.JS", "function app() {}")
     write_file(tmp_path, "src/api.TS", "function api(): void {}")
-    write_file(tmp_path, "src/component.jsx", "export const Component = () => null")
-    write_file(tmp_path, "src/component.tsx", "export const Component = () => null")
+    write_file(tmp_path, "src/component.JSX", "export const Component = () => null")
+    write_file(tmp_path, "src/component.TSX", "export const Component = () => null")
     write_file(tmp_path, "src/module.mjs", "export const value = 1")
     write_file(tmp_path, "src/module.cjs", "module.exports = 1")
 
     result = scan_repository(tmp_path, RuntimeConfig())
 
-    assert result_paths(result) == ("src/api.TS", "src/app.JS")
-    assert tuple(source.suffix for source in result.files) == (".ts", ".js")
+    assert result_paths(result) == (
+        "src/api.TS",
+        "src/app.JS",
+        "src/component.JSX",
+        "src/component.TSX",
+    )
+    assert tuple(source.suffix for source in result.files) == (".ts", ".js", ".jsx", ".tsx")
 
 
-def test_js_and_ts_still_obey_ignore_and_resource_limits(tmp_path: Path) -> None:
-    write_file(tmp_path, ".gitignore", "ignored.ts\n")
-    write_file(tmp_path, "ignored.ts", "ignored")
+def test_js_family_still_obeys_ignore_and_resource_limits(tmp_path: Path) -> None:
+    write_file(tmp_path, ".gitignore", "ignored.tsx\n")
+    write_file(tmp_path, "ignored.tsx", "ignored")
     write_file(tmp_path, "a.js", "a")
-    write_file(tmp_path, "b.ts", "b")
+    write_file(tmp_path, "b.jsx", "b")
+    write_file(tmp_path, "c.tsx", "c")
 
-    result = scan_repository(tmp_path, RuntimeConfig(maximum_file_count=1))
+    result = scan_repository(tmp_path, RuntimeConfig(maximum_file_count=2))
 
-    assert result_paths(result) == ("a.js",)
-    assert diagnostic_pairs(result) == (("b.ts", ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED),)
+    assert result_paths(result) == ("a.js", "b.jsx")
+    assert diagnostic_pairs(result) == (("c.tsx", ScanDiagnosticCode.FILE_COUNT_LIMIT_REACHED),)
