@@ -137,3 +137,22 @@
    still allowing old JSON to parse into the expanded result model?
 8. Which boundaries keep `.jsx`, `.tsx`, CommonJS, re-exports, calls, and resolution out of
    M2.1A, and what evidence would be needed before adding each later?
+
+## Milestone 2.1B — Bounded CommonJS, Re-exports, and TypeScript Declarations
+
+1. Why does matching exact top-level `require` forms remain extraction rather than general
+   call analysis?
+2. Why can a later program-scope declaration or reassignment make an earlier apparent
+   `require`, `module`, or `exports` occurrence ambiguous?
+3. Why does any syntax error suppress CommonJS facts while safe ESM re-exports and selected
+   TypeScript declarations can still survive in error-free sibling subtrees?
+4. How do named, star, and namespace re-exports preserve different written identities
+   without proving that a target module or member exists?
+5. Why are explicit type-only re-exports omitted, while an unresolved runtime-form
+   re-export remains a fact even if its target might ultimately be a type?
+6. Why do interfaces and type aliases become declaration nodes without runtime export
+   facts, while an ordinary exported enum produces both a node and direct export fact?
+7. How do source coordinates keep duplicate declaration IDs deterministic and independent
+   of parser traversal or filesystem order?
+8. How do production empty-field omission and the exact test-only M2.1A projection preserve
+   historical bytes without concealing M2.1B behavior from normal indexing?

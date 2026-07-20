@@ -104,8 +104,14 @@ def _assert_graph_integrity(
     assert canonical_index_json(result).encode("utf-8") == rendered
     assert result.esm_imports == ()
     assert result.esm_exports == ()
+    assert result.commonjs_requires == ()
+    assert result.commonjs_exports == ()
+    assert result.esm_reexports == ()
     assert b'"esm_imports"' not in rendered
     assert b'"esm_exports"' not in rendered
+    assert b'"commonjs_requires"' not in rendered
+    assert b'"commonjs_exports"' not in rendered
+    assert b'"esm_reexports"' not in rendered
     assert str(repository).encode("utf-8") not in rendered
     assert b"timestamp" not in rendered.lower()
     for node in nodes:

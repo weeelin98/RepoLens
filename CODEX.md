@@ -1,8 +1,8 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1 complete; Linux CI verified.
-Next active slice: Milestone 2.1B — CommonJS, re-exports, and additional TypeScript declarations
-Last updated: 2026-07-17
+Status: Milestone 1 complete; Linux CI verified. M2.1A and M2.1B are complete locally.
+Next active slice: not selected; Milestone 2 remains open.
+Last updated: 2026-07-20
 
 ## Mission and user problem
 
@@ -120,7 +120,7 @@ graph. Extractors do not call resolvers. MCP does not import parser implementati
 ### Nodes
 
 Kinds: `repository`, `directory`, `file`, `module`, `class`, `function`, `method`,
-`react_component`, `api_endpoint`, `data_model`, `test`, `markdown_document`,
+`interface`, `type_alias`, `enum`, `react_component`, `api_endpoint`, `data_model`, `test`, `markdown_document`,
 `markdown_section`, `external_dependency`.
 
 Every node supports `id`, `kind`, `label`, optional `language`, repository-relative
@@ -164,6 +164,10 @@ resolved target node or graph edge.
 `ExtractionResult.esm_imports` and `ExtractionResult.esm_exports` separately preserve
 direct JavaScript/TypeScript ESM syntax because Python relative-import fields do not model
 ESM accurately. These channels likewise imply neither a resolved target nor graph edge.
+`ExtractionResult.commonjs_requires`, `ExtractionResult.commonjs_exports`, and
+`ExtractionResult.esm_reexports` preserve only the bounded M2.1B occurrence forms. A
+complete program-level ambiguity guard protects CommonJS global names; all three channels
+remain unresolved and create no graph import/export edge.
 `ExtractionResult.markdown_facts` similarly holds immutable unresolved links, fenced-code
 blocks, and inline-code syntax. Their containing Markdown section may be known while their
 referenced target remains unresolved, so they do not become `references` edges.
@@ -237,7 +241,7 @@ metrics/evaluation.json
 ```
 
 `graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
-unresolved Python and ESM import/export facts, unresolved Markdown facts, direct project
+unresolved Python, ESM import/export/re-export, and bounded CommonJS facts, unresolved Markdown facts, direct project
 metadata facts, scanner diagnostics, and
 extractor/source-loading diagnostics. It is
 UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
@@ -603,6 +607,27 @@ syntax trees and require controlled gold migrations.
   contribute facts. Anonymous functions/classes, generators, constructors, accessors,
   TypeScript namespaces/modules, and ambient declarations cannot leak nested definitions
   under a false extracted parent.
+- **2026-07-20 — M2.1B CommonJS is exact and globally guarded.** Only documented direct
+  program-child calls, declarators, and assignments produce occurrence facts. A complete
+  error-free program-scope audit suppresses any fact whose `require`, `module`, or `exports`
+  receiver is bound or reassigned; partial parses suppress every CommonJS fact.
+- **2026-07-20 — Re-exports retain written identities without target claims.** Named, star,
+  and namespace runtime forms use a dedicated unresolved channel. Explicit type-only forms
+  are omitted, and no import/export target node or edge is fabricated.
+- **2026-07-20 — Selected TypeScript declarations use honest additive node kinds.** Named
+  module-level interfaces, type aliases, and ordinary enums use `interface`, `type_alias`,
+  and `enum`; `const enum`, ambient, namespace, nested, and other declarations remain out of
+  scope. The nested graph schema stays at version 1 because old payloads still parse and
+  new top-level channels default empty and serialize only when nonempty.
+- **2026-07-20 — Historical M2.1A comparison uses an exact additive projection.** Tests may
+  remove only the three M2.1B node kinds, their containment edges, and the three new fact
+  channels before comparing every remaining canonical byte. Production indexing always
+  exposes all current M2.1B behavior.
+- **2026-07-20 — CommonJS ambiguity follows runtime bindings.** The complete program audit
+  includes hoisted program-scope `var`, runtime generator/class/enum/namespace declarations,
+  import-equals bindings, and bare program-level reassignments while excluding erased
+  type-only imports, interfaces, type aliases, and `const enum`. Exact require matching also
+  excludes optional and type-argument calls; named re-exports require identifier names.
 
 ## Progress
 
@@ -619,7 +644,8 @@ syntax trees and require controlled gold migrations.
 
 Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
 `28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
-and the next active slice is M2.1B. JSX/TSX and later extraction work remain open.
+and M2.1B is complete locally. No next slice is selected; JSX/TSX and later extraction work
+remain open.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -781,6 +807,56 @@ mapping; why ESM facts are not edges; why recoverable tree-sitter errors differ 
 failed Python AST parse; and why unsupported anonymous/namespace/generator scopes are
 barriers rather than transparent containers. Also explain why erased TypeScript type-only
 imports and exports must not be reported as runtime ESM facts.
+
+### Milestone 2.1B — Bounded CommonJS, re-exports, and TypeScript declarations
+
+- [x] Added frozen unresolved contracts and default-empty, conditionally omitted repository
+  channels for CommonJS requires, CommonJS export assignments, and ESM re-exports.
+- [x] Added exact top-level CommonJS structural matching, complete program-scope shadow and
+  reassignment guards, and whole-file CommonJS suppression on partial parses.
+- [x] Added named/star/namespace runtime re-exports with statement/specifier type-only
+  filtering and no target lookup or graph edge.
+- [x] Added direct module children for named interfaces, type aliases, and ordinary enums;
+  ambient, `const enum`, namespace, nested, and other declaration forms remain absent.
+- [x] Added an isolated M2.1B partial repository/gold and an explicit check/update helper;
+  M1 gold remains unchanged and M2.1A uses only the reviewed additive test projection.
+- [x] Completed the final offline validation, deterministic CLI smoke, documentation audit,
+  and scope audit. M2.1B is complete locally; Milestone 2 remains open.
+- [x] Independent final review repaired the runtime shadow audit and exact-shape boundaries,
+  added focused regressions, and repeated the complete offline validation and scope audit.
+
+Learning checkpoint: explain the boundary between exact CommonJS occurrence matching and
+general call analysis; why runtime shadowing/reassignment and partial parses require
+suppression while erased type-only names do not; why re-exports are unresolved facts rather
+than edges; why interface/type declarations differ from ordinary enums at runtime; and how
+empty-field omission plus the exact M2.1A projection preserve historical bytes without
+hiding current production behavior.
+
+## Milestone 2.1B validation record
+
+Validated locally on Windows on 2026-07-20 with Python 3.11.15. This record does not claim
+Linux or GitHub Actions verification.
+
+- `uv lock --check --offline` resolved 30 packages; `uv sync --dev --locked` resolved 30
+  and checked 29. No dependency declaration or lockfile changed.
+- Ruff reported 51 files formatted and all lint checks passed. Mypy reported no issues in
+  35 source files.
+- Focused suites passed: 44 selected M2.1B cases; 78 complete JS/TS extractor cases; 8
+  model cases; 30 indexer cases; 22 CLI cases; 16 M1 acceptance cases; and the individual
+  M2.1A projection and M2.1B partial-gold cases.
+- Full pytest collected 279 tests: 276 passed and 3 skipped only because Windows returned
+  symlink privilege error 1314. Total coverage was 93%; the JS/TS extractor reported 94%.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  Python 3.11.15/package 0.1.0 healthy and no network requirement.
+- The M1 checker matched all 4 unchanged gold files. The M2.1A test removed only the three
+  additive node kinds, their containment edges, and the three M2.1B fact channels before
+  matching every historical canonical byte. The committed `m2-1a-graph.json` was unchanged.
+- Two M2.1B partial-gold generations were byte-identical at 6,192 bytes with SHA-256
+  `bc5d0eab6684fdd27f6bdb66252bb2958ebc0c9750b818a0fc2151cf353a445e`.
+- Two disposable CLI indexes produced the same hash, 10 nodes, 9 edges, 2 CommonJS require
+  facts, 2 CommonJS export facts, 5 ESM re-export facts, and no warnings. The temporary
+  absolute repository path was absent from JSON and the source non-execution sentinel was
+  not created.
 
 ## Milestone 2.1A validation record
 

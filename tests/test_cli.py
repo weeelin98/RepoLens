@@ -412,3 +412,31 @@ def test_index_malformed_javascript_serializes_conservative_partial_result(
         "broken.after",
     }
     assert "warnings=1" in result.output
+
+
+def test_index_serializes_m21b_channels_and_counts_commonjs_requires(tmp_path: Path) -> None:
+    write_file(
+        tmp_path,
+        "module.js",
+        "require('setup');\n"
+        "const value = require('pkg');\n"
+        "module.exports = value;\n"
+        "export { named } from 'esm';\n",
+    )
+
+    first_result = runner.invoke(app, ["index", str(tmp_path)])
+    first = graph_path(tmp_path).read_bytes()
+    second_result = runner.invoke(app, ["index", str(tmp_path)])
+    second = graph_path(tmp_path).read_bytes()
+    payload = json.loads(second)
+
+    assert first_result.exit_code == second_result.exit_code == 0
+    assert first == second
+    assert "imports=2" in second_result.output
+    assert [fact["kind"] for fact in payload["commonjs_requires"]] == [
+        "side_effect",
+        "binding",
+    ]
+    assert payload["commonjs_exports"][0]["kind"] == "module_exports"
+    assert payload["esm_reexports"][0]["exported_name"] == "named"
+    assert str(tmp_path).encode() not in second

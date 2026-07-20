@@ -12,8 +12,11 @@ from pydantic import ValidationError
 from repolens.config import RuntimeConfig
 from repolens.extractors import ExtractionResult, ExtractorRegistry
 from repolens.extractors.base import (
+    CommonJsExportKind,
+    CommonJsRequireKind,
     EsmExportKind,
     EsmImportKind,
+    EsmReExportKind,
     ImportFactKind,
     MetadataEcosystem,
 )
@@ -548,3 +551,42 @@ def test_javascript_source_is_parsed_but_never_executed(tmp_path: Path) -> None:
 
     assert node_for_path(result, NodeKind.MODULE, "danger.js")
     assert not sentinel.exists()
+
+
+def test_m21b_facts_and_typescript_declarations_merge_without_target_edges(
+    tmp_path: Path,
+) -> None:
+    write_file(
+        tmp_path,
+        "a.js",
+        "const value = require('pkg');\nexports.value = value;\n",
+    )
+    write_file(
+        tmp_path,
+        "b.ts",
+        "export { value as renamed } from 'pkg';\n"
+        "export interface Shape {}\n"
+        "export type Name = string;\n"
+        "export enum State { Ready }\n",
+    )
+
+    result = index_repository(tmp_path, RuntimeConfig())
+
+    assert [(fact.kind, fact.module, fact.local_name) for fact in result.commonjs_requires] == [
+        (CommonJsRequireKind.BINDING, "pkg", "value")
+    ]
+    assert [
+        (fact.kind, fact.exported_name, fact.local_name) for fact in result.commonjs_exports
+    ] == [(CommonJsExportKind.NAMED, "value", "value")]
+    assert [
+        (fact.kind, fact.module, fact.imported_name, fact.exported_name)
+        for fact in result.esm_reexports
+    ] == [(EsmReExportKind.NAMED, "pkg", "value", "renamed")]
+    assert {node.kind for node in result.graph.nodes} >= {
+        NodeKind.INTERFACE,
+        NodeKind.TYPE_ALIAS,
+        NodeKind.ENUM,
+    }
+    assert all(
+        edge.relation not in {EdgeKind.IMPORTS, EdgeKind.EXPORTS} for edge in result.graph.edges
+    )

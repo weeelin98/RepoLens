@@ -159,7 +159,7 @@ def index(
     typer.echo(
         f"Indexed {path}: files={file_count}, nodes={len(result.graph.nodes)}, "
         f"edges={len(result.graph.edges)}, "
-        f"imports={len(result.imports) + len(result.esm_imports)}, "
+        f"imports={len(result.imports) + len(result.esm_imports) + len(result.commonjs_requires)}, "
         f"warnings={diagnostic_count}; graph.json={display_output}"
     )
 
