@@ -119,3 +119,22 @@ def test_source_span_validation() -> None:
 def test_metadata_rejects_non_json_values() -> None:
     with pytest.raises(ValidationError, match="JSON-compatible"):
         GraphNode(id="a", kind=NodeKind.FILE, label="a", metadata={"bad": {1, 2}})
+
+
+def test_m21b_node_kinds_are_additive_without_graph_schema_change() -> None:
+    graph = GraphSnapshot(
+        nodes=(
+            GraphNode(id="interface", kind=NodeKind.INTERFACE, label="Interface"),
+            GraphNode(id="type", kind=NodeKind.TYPE_ALIAS, label="Alias"),
+            GraphNode(id="enum", kind=NodeKind.ENUM, label="Enum"),
+        )
+    )
+
+    payload = json.loads(canonical_graph_json(graph))
+
+    assert graph.schema_version == 1
+    assert {item["kind"] for item in payload["nodes"]} == {
+        "interface",
+        "type_alias",
+        "enum",
+    }

@@ -12,14 +12,20 @@ from tree_sitter import Language, Parser
 
 from repolens.config import RuntimeConfig
 from repolens.extractors import (
+    CommonJsExportKind,
+    CommonJsRequireKind,
     EsmExportKind,
     EsmImportKind,
+    EsmReExportKind,
     ExtractionResult,
     Extractor,
     ExtractorRegistry,
     JavaScriptTypeScriptExtractor,
+    UnresolvedCommonJsExportFact,
+    UnresolvedCommonJsRequireFact,
     UnresolvedEsmExportFact,
     UnresolvedEsmImportFact,
+    UnresolvedEsmReExportFact,
 )
 from repolens.graph.serialization import canonical_index_json, parse_index_json
 from repolens.ids import stable_node_id
@@ -38,6 +44,35 @@ PROJECT_ROOT = Path(__file__).parents[1]
 
 def _node(result: ExtractionResult, qualified_name: str) -> GraphNode:
     return next(node for node in result.nodes if node.qualified_name == qualified_name)
+
+
+def _m21a_compatibility_projection(result: RepositoryIndexResult) -> RepositoryIndexResult:
+    additive_kinds = {NodeKind.INTERFACE, NodeKind.TYPE_ALIAS, NodeKind.ENUM}
+    additive_ids = {node.id for node in result.graph.nodes if node.kind in additive_kinds}
+    assert all(
+        edge.relation is EdgeKind.CONTAINS
+        for edge in result.graph.edges
+        if edge.source_id in additive_ids or edge.target_id in additive_ids
+    )
+    return RepositoryIndexResult(
+        graph=GraphSnapshot(
+            schema_version=result.graph.schema_version,
+            nodes=tuple(node for node in result.graph.nodes if node.id not in additive_ids),
+            edges=tuple(
+                edge
+                for edge in result.graph.edges
+                if edge.source_id not in additive_ids and edge.target_id not in additive_ids
+            ),
+            metadata=result.graph.metadata,
+        ),
+        imports=result.imports,
+        esm_imports=result.esm_imports,
+        esm_exports=result.esm_exports,
+        markdown_facts=result.markdown_facts,
+        metadata_facts=result.metadata_facts,
+        scanner_diagnostics=result.scanner_diagnostics,
+        extractor_diagnostics=result.extractor_diagnostics,
+    )
 
 
 def test_locked_tree_sitter_versions_and_real_parser_abi_compatibility() -> None:
@@ -459,7 +494,7 @@ def test_mixed_runtime_and_type_only_export_retains_only_runtime_specifier() -> 
     ] == [(EsmExportKind.LIST, "Foo", "Foo", False)]
 
 
-def test_type_only_and_runtime_reexports_remain_unsupported() -> None:
+def test_reexports_do_not_leak_into_local_esm_export_channel() -> None:
     source = "\n".join(
         [
             'export type { Foo } from "./types";',
@@ -469,6 +504,9 @@ def test_type_only_and_runtime_reexports_remain_unsupported() -> None:
     result = JavaScriptTypeScriptExtractor().extract(Path("reexports.ts"), source)
 
     assert result.esm_exports == ()
+    assert [
+        (fact.module, fact.imported_name, fact.exported_name) for fact in result.esm_reexports
+    ] == [("./runtime", "RuntimeValue", "RuntimeValue")]
 
 
 def test_anonymous_default_exports_are_out_of_scope() -> None:
@@ -583,23 +621,320 @@ def test_empty_esm_channels_preserve_old_index_serialization_and_parsing() -> No
 def test_typescript_frontend_matches_separate_m21a_partial_gold() -> None:
     fixture = PROJECT_ROOT / "harness" / "fixtures" / "typescript_frontend"
     result = index_repository(fixture / "repo", RuntimeConfig())
-    rendered = canonical_index_json(result)
+    projected = _m21a_compatibility_projection(result)
+    rendered = canonical_index_json(projected)
     expected = (fixture / "m2-1a-graph.json").read_text(encoding="utf-8")
 
     assert rendered == expected
-    assert result == parse_index_json(expected)
+    assert projected == parse_index_json(expected)
     assert {node.source_path for node in result.graph.nodes} == {
         ".",
         "src",
         "src/api.ts",
         "tsconfig.json",
     }
-    assert [node.qualified_name for node in result.graph.nodes if node.qualified_name] == [
+    assert [node.qualified_name for node in projected.graph.nodes if node.qualified_name] == [
         "src.api.loadProfile",
         "src.api",
         "<repository>",
     ]
-    assert [(fact.exported_name, fact.local_name) for fact in result.esm_exports] == [
+    assert [(fact.exported_name, fact.local_name) for fact in projected.esm_exports] == [
         ("loadProfile", "loadProfile")
     ]
     assert all(node.source_path != "src/ProfileCard.tsx" for node in result.graph.nodes)
+
+
+def test_top_level_commonjs_supported_forms_are_occurrence_facts() -> None:
+    source = (
+        'require("setup");\n'
+        "const client = require('pkg'), other = require(\"other\");\n"
+        "module.exports = client;\n"
+        "exports.client = client;\n"
+        "module.exports.other = other;\n"
+    )
+
+    result = JavaScriptTypeScriptExtractor().extract(Path("src/common.js"), source)
+
+    assert [(fact.kind, fact.module, fact.local_name) for fact in result.commonjs_requires] == [
+        (CommonJsRequireKind.SIDE_EFFECT, "setup", None),
+        (CommonJsRequireKind.BINDING, "pkg", "client"),
+        (CommonJsRequireKind.BINDING, "other", "other"),
+    ]
+    assert [
+        (fact.kind, fact.exported_name, fact.local_name) for fact in result.commonjs_exports
+    ] == [
+        (CommonJsExportKind.MODULE_EXPORTS, None, "client"),
+        (CommonJsExportKind.NAMED, "client", "client"),
+        (CommonJsExportKind.NAMED, "other", "other"),
+    ]
+    assert result.commonjs_requires[0].span == SourceSpan(
+        start_line=1, end_line=1, start_column=0, end_column=16
+    )
+    assert all(edge.relation not in {EdgeKind.IMPORTS, EdgeKind.EXPORTS} for edge in result.edges)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "function nested() { require('pkg'); }",
+        "const { value } = require('pkg');",
+        "const value = require(`pkg`);",
+        "const value = require('pkg').value;",
+        "const value = require?.('pkg');",
+        "const value = require<string>('pkg');",
+        "consume(require('pkg'));",
+        "module['exports'] = value;",
+        "exports.value += value;",
+        "exports.value = { value };",
+        "module.exports = exports.value = value;",
+        "import value = require('pkg');",
+        "export = value;",
+    ],
+)
+def test_unsupported_commonjs_neighbors_are_omitted(source: str) -> None:
+    result = JavaScriptTypeScriptExtractor().extract(Path("unsupported.ts"), source)
+
+    assert result.commonjs_requires == ()
+    assert result.commonjs_exports == ()
+
+
+@pytest.mark.parametrize(
+    ("source", "channel"),
+    [
+        ("require('pkg'); const require = local;", "require"),
+        ("require('pkg'); function require() {}", "require"),
+        ("import require from 'shim'; require('pkg');", "require"),
+        ("import require = require('shim'); require('pkg');", "require"),
+        ("require = local; require('pkg');", "require"),
+        ("require('pkg'); require++;", "require"),
+        ("require('pkg'); if (flag) { require = local; }", "require"),
+        ("require('pkg'); if (flag) { var require; }", "require"),
+        ("require('pkg'); function* require() {}", "require"),
+        ("require('pkg'); abstract class require {}", "require"),
+        ("require('pkg'); namespace require {}", "require"),
+        ("module.exports = value; class module {}", "export"),
+        ("exports.value = value; let exports;", "export"),
+        ("module = local; module.exports = value;", "export"),
+    ],
+)
+def test_commonjs_program_scope_ambiguity_suppresses_relevant_facts(
+    source: str,
+    channel: str,
+) -> None:
+    result = JavaScriptTypeScriptExtractor().extract(Path("shadow.ts"), source)
+
+    if channel == "require":
+        assert result.commonjs_requires == ()
+    else:
+        assert result.commonjs_exports == ()
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "const { value = require } = config; const client = require('pkg');",
+        "interface require {} const client = require('pkg');",
+        "type require = () => void; const client = require('pkg');",
+        "const enum require { Value } const client = require('pkg');",
+        "import type require from 'types'; const client = require('pkg');",
+        "{ let require; require = local; } const client = require('pkg');",
+    ],
+)
+def test_type_only_names_and_destructuring_references_do_not_shadow_require(source: str) -> None:
+    result = JavaScriptTypeScriptExtractor().extract(Path("runtime-shadow.ts"), source)
+
+    assert [(fact.module, fact.local_name) for fact in result.commonjs_requires] == [
+        ("pkg", "client")
+    ]
+
+
+def test_partial_parse_suppresses_commonjs_but_keeps_safe_m21a_siblings() -> None:
+    source = "require('pkg');\n}\nfunction safe() {}\nmodule.exports = safe;\n"
+
+    result = JavaScriptTypeScriptExtractor().extract(Path("broken.js"), source)
+
+    assert result.commonjs_requires == ()
+    assert result.commonjs_exports == ()
+    assert _node(result, "broken.safe")
+    assert result.diagnostics == ("tree_sitter_syntax_error:broken.js:2:0",)
+
+
+def test_partial_parse_keeps_safe_m21b_reexport_and_declaration_siblings() -> None:
+    source = 'export { value } from "pkg";\n}\ninterface Safe {}\n'
+
+    result = JavaScriptTypeScriptExtractor().extract(Path("partial.ts"), source)
+
+    assert [(fact.module, fact.imported_name) for fact in result.esm_reexports] == [
+        ("pkg", "value")
+    ]
+    assert _node(result, "partial.Safe").kind is NodeKind.INTERFACE
+    assert result.diagnostics == ("tree_sitter_syntax_error:partial.ts:2:0",)
+
+
+def test_runtime_esm_reexport_forms_and_type_filters() -> None:
+    source = (
+        'export { value, value as alias, default as primary, type Type } from "pkg";\n'
+        'export * from "star";\n'
+        'export * as namespace from "space";\n'
+        'export type { Hidden } from "types";\n'
+        'export type * from "more-types";\n'
+    )
+
+    result = JavaScriptTypeScriptExtractor().extract(Path("exports.ts"), source)
+
+    assert [
+        (fact.kind, fact.module, fact.imported_name, fact.exported_name)
+        for fact in result.esm_reexports
+    ] == [
+        (EsmReExportKind.NAMED, "pkg", "value", "value"),
+        (EsmReExportKind.NAMED, "pkg", "value", "alias"),
+        (EsmReExportKind.NAMED, "pkg", "default", "primary"),
+        (EsmReExportKind.STAR, "star", "*", None),
+        (EsmReExportKind.NAMESPACE, "space", "*", "namespace"),
+    ]
+    assert result.esm_exports == ()
+
+
+def test_string_named_reexports_remain_outside_the_exact_supported_forms() -> None:
+    result = JavaScriptTypeScriptExtractor().extract(
+        Path("string-names.ts"),
+        'export { "value" as alias, value as "alias" } from "pkg";',
+    )
+
+    assert result.esm_reexports == ()
+
+
+def test_selected_typescript_declarations_are_module_children_only() -> None:
+    source = (
+        "interface User<T> { value: T }\n"
+        "type UserId = string | number;\n"
+        "enum Status { Ready, Done = 2 }\n"
+        "const enum Hidden { Value }\n"
+        "declare interface Ambient {}\n"
+        "namespace Space { interface Nested {} }\n"
+        "function scope() { type Nested = string; }\n"
+    )
+
+    result = JavaScriptTypeScriptExtractor().extract(Path("src/types.ts"), source)
+    selected = {
+        node.qualified_name: node
+        for node in result.nodes
+        if node.kind
+        in {
+            NodeKind.INTERFACE,
+            NodeKind.TYPE_ALIAS,
+            NodeKind.ENUM,
+        }
+    }
+
+    assert set(selected) == {"src.types.User", "src.types.UserId", "src.types.Status"}
+    assert selected["src.types.User"].kind is NodeKind.INTERFACE
+    assert selected["src.types.UserId"].kind is NodeKind.TYPE_ALIAS
+    assert selected["src.types.Status"].kind is NodeKind.ENUM
+    module = _node(result, "src.types")
+    assert {(edge.source_id, edge.target_id) for edge in result.edges} >= {
+        (module.id, selected["src.types.User"].id),
+        (module.id, selected["src.types.UserId"].id),
+        (module.id, selected["src.types.Status"].id),
+    }
+
+
+def test_exported_typescript_type_declarations_do_not_claim_runtime_exports() -> None:
+    source = (
+        "export interface User {}\nexport type UserId = string;\nexport enum Status { Ready }\n"
+    )
+
+    result = JavaScriptTypeScriptExtractor().extract(Path("types.ts"), source)
+
+    assert {node.kind for node in result.nodes} >= {
+        NodeKind.INTERFACE,
+        NodeKind.TYPE_ALIAS,
+        NodeKind.ENUM,
+    }
+    assert [(fact.exported_name, fact.local_name) for fact in result.esm_exports] == [
+        ("Status", "Status")
+    ]
+
+
+def test_new_fact_models_validate_forms_paths_and_old_json_compatibility() -> None:
+    span = SourceSpan(start_line=1, end_line=1, start_column=0, end_column=1)
+
+    with pytest.raises(ValidationError):
+        UnresolvedCommonJsRequireFact(
+            kind=CommonJsRequireKind.SIDE_EFFECT,
+            module="pkg",
+            local_name="value",
+            source_path="module.js",
+            span=span,
+        )
+    with pytest.raises(ValidationError):
+        UnresolvedCommonJsExportFact(
+            kind=CommonJsExportKind.NAMED,
+            local_name="value",
+            source_path="module.js",
+            span=span,
+        )
+    with pytest.raises(ValidationError):
+        UnresolvedEsmReExportFact(
+            kind=EsmReExportKind.STAR,
+            module="pkg",
+            imported_name="*",
+            exported_name="wrong",
+            source_path="module.js",
+            span=span,
+        )
+    with pytest.raises(ValidationError, match="cannot contain"):
+        UnresolvedCommonJsRequireFact(
+            kind=CommonJsRequireKind.SIDE_EFFECT,
+            module="pkg",
+            source_path="../module.js",
+            span=span,
+        )
+
+    rendered = canonical_index_json(RepositoryIndexResult(graph=GraphSnapshot()))
+    assert '"commonjs_requires"' not in rendered
+    assert '"commonjs_exports"' not in rendered
+    assert '"esm_reexports"' not in rendered
+    parsed = parse_index_json(rendered)
+    assert parsed.commonjs_requires == ()
+    assert parsed.commonjs_exports == ()
+    assert parsed.esm_reexports == ()
+
+
+def test_m21b_isolated_partial_gold_matches_semantics_and_repeated_generation() -> None:
+    fixture = PROJECT_ROOT / "harness" / "fixtures" / "typescript_frontend"
+    repository = fixture / "m2-1b-repo"
+    expected_bytes = (fixture / "m2-1b-graph.json").read_bytes()
+
+    first = canonical_index_json(index_repository(repository, RuntimeConfig())).encode()
+    second = canonical_index_json(index_repository(repository, RuntimeConfig())).encode()
+    result = parse_index_json(expected_bytes.decode())
+
+    assert first == second == expected_bytes
+    assert b"\r" not in expected_bytes
+    assert str(repository).encode() not in expected_bytes
+    assert not (repository / "executed.txt").exists()
+    assert {node.kind for node in result.graph.nodes} >= {
+        NodeKind.INTERFACE,
+        NodeKind.TYPE_ALIAS,
+        NodeKind.ENUM,
+    }
+    interface = _node(
+        ExtractionResult(nodes=result.graph.nodes),
+        "src.exports.Profile",
+    )
+    assert interface.id == "interface:077f74123649e1c67015"
+    assert interface.span == SourceSpan(
+        start_line=6,
+        end_line=8,
+        start_column=7,
+        end_column=1,
+    )
+    assert [fact.module for fact in result.commonjs_requires] == ["setup", "./client"]
+    assert [fact.kind for fact in result.esm_reexports] == [
+        EsmReExportKind.NAMED,
+        EsmReExportKind.NAMED,
+        EsmReExportKind.NAMED,
+        EsmReExportKind.STAR,
+        EsmReExportKind.NAMESPACE,
+    ]

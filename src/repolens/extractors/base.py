@@ -37,6 +37,28 @@ class EsmExportKind(StrEnum):
     LIST = "list"
 
 
+class CommonJsRequireKind(StrEnum):
+    """Supported unresolved CommonJS require occurrence forms."""
+
+    SIDE_EFFECT = "side_effect"
+    BINDING = "binding"
+
+
+class CommonJsExportKind(StrEnum):
+    """Supported unresolved CommonJS export assignment forms."""
+
+    MODULE_EXPORTS = "module_exports"
+    NAMED = "named"
+
+
+class EsmReExportKind(StrEnum):
+    """Supported unresolved ESM re-export forms."""
+
+    NAMED = "named"
+    STAR = "star"
+    NAMESPACE = "namespace"
+
+
 class MarkdownFactKind(StrEnum):
     """Direct Markdown syntax forms that remain unresolved during extraction."""
 
@@ -202,6 +224,108 @@ class UnresolvedEsmExportFact(BaseModel):
         )
 
 
+class UnresolvedCommonJsRequireFact(BaseModel):
+    """One exact top-level CommonJS require occurrence without resolution."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: CommonJsRequireKind
+    module: str = Field(min_length=1)
+    local_name: str | None = Field(default=None, min_length=1)
+    source_path: str = Field(min_length=1)
+    span: SourceSpan
+
+    _source_path_is_relative = field_validator("source_path")(_normalize_fact_source_path)
+
+    @model_validator(mode="after")
+    def validate_require_form(self) -> Self:
+        if self.kind is CommonJsRequireKind.SIDE_EFFECT and self.local_name is not None:
+            raise ValueError("side-effect require cannot contain a local name")
+        if self.kind is CommonJsRequireKind.BINDING and self.local_name is None:
+            raise ValueError("binding require requires a local name")
+        return self
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.span.start_line,
+            self.span.start_column if self.span.start_column is not None else -1,
+            self.kind.value,
+            self.module,
+            self.local_name or "",
+        )
+
+
+class UnresolvedCommonJsExportFact(BaseModel):
+    """One exact top-level CommonJS export assignment without resolution."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: CommonJsExportKind
+    exported_name: str | None = Field(default=None, min_length=1)
+    local_name: str = Field(min_length=1)
+    source_path: str = Field(min_length=1)
+    span: SourceSpan
+
+    _source_path_is_relative = field_validator("source_path")(_normalize_fact_source_path)
+
+    @model_validator(mode="after")
+    def validate_export_form(self) -> Self:
+        if self.kind is CommonJsExportKind.MODULE_EXPORTS and self.exported_name is not None:
+            raise ValueError("module.exports assignment cannot contain an exported name")
+        if self.kind is CommonJsExportKind.NAMED and self.exported_name is None:
+            raise ValueError("named CommonJS export requires an exported name")
+        return self
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.span.start_line,
+            self.span.start_column if self.span.start_column is not None else -1,
+            self.kind.value,
+            self.exported_name or "",
+            self.local_name,
+        )
+
+
+class UnresolvedEsmReExportFact(BaseModel):
+    """One direct ESM re-export occurrence without target resolution."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: EsmReExportKind
+    module: str = Field(min_length=1)
+    imported_name: str = Field(min_length=1)
+    exported_name: str | None = Field(default=None, min_length=1)
+    source_path: str = Field(min_length=1)
+    span: SourceSpan
+
+    _source_path_is_relative = field_validator("source_path")(_normalize_fact_source_path)
+
+    @model_validator(mode="after")
+    def validate_reexport_form(self) -> Self:
+        if self.kind is EsmReExportKind.NAMED:
+            if self.imported_name == "*" or self.exported_name is None:
+                raise ValueError("named re-export requires imported and exported names")
+        elif self.kind is EsmReExportKind.STAR:
+            if self.imported_name != "*" or self.exported_name is not None:
+                raise ValueError("star re-export requires '*' and no exported name")
+        elif self.imported_name != "*" or self.exported_name is None:
+            raise ValueError("namespace re-export requires '*' and an exported name")
+        return self
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.span.start_line,
+            self.span.start_column if self.span.start_column is not None else -1,
+            self.kind.value,
+            self.module,
+            self.imported_name,
+            self.exported_name or "",
+        )
+
+
 class UnresolvedMarkdownFact(BaseModel):
     """One direct Markdown syntax fact without a resolved graph target."""
 
@@ -322,6 +446,9 @@ class ExtractionResult(BaseModel):
     imports: tuple[UnresolvedImportFact, ...] = ()
     esm_imports: tuple[UnresolvedEsmImportFact, ...] = ()
     esm_exports: tuple[UnresolvedEsmExportFact, ...] = ()
+    commonjs_requires: tuple[UnresolvedCommonJsRequireFact, ...] = ()
+    commonjs_exports: tuple[UnresolvedCommonJsExportFact, ...] = ()
+    esm_reexports: tuple[UnresolvedEsmReExportFact, ...] = ()
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
     metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     diagnostics: tuple[str, ...] = ()
