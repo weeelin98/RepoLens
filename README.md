@@ -76,10 +76,14 @@ re-exports, interfaces, and type aliases do not become runtime export facts, whi
 exported enums do. All module relationships remain unresolved syntax facts without target
 nodes or import/export graph edges.
 
-M2.1B is complete locally on Windows after an independent final review: the full suite
-passed 276 tests with the same three privileged-symlink skips, total coverage remained 93%,
-and repeated partial-gold/CLI hashes were byte-identical. This does not claim Linux CI
-verification. Milestone 2 remains open.
+M2.1B is complete and Linux CI verified after an independent final review. The local
+Windows full suite passed 276 tests with the same three symlink skips caused by privilege
+error 1314, total coverage remained 93%, and repeated partial-gold/CLI hashes were
+byte-identical. PR #4's required Linux `check` job passed for implementation commit
+`b680592a25409f5c7bb0abe9f70b24459298c0d0` in workflow run `29776458604`, completing in
+18 seconds; the exact job record is
+https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
+Milestone 2 remains open, and no next slice has been selected.
 
 The current `graph.json` contains repository/directory/file structure, Python modules and
 definitions with spans and stable IDs, JavaScript/TypeScript modules and bounded definition

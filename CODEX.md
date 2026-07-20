@@ -1,6 +1,7 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1 complete; Linux CI verified. M2.1A and M2.1B are complete locally.
+Status: Milestone 1 complete; Linux CI verified. M2.1A is complete. M2.1B is complete and
+Linux CI verified.
 Next active slice: not selected; Milestone 2 remains open.
 Last updated: 2026-07-20
 
@@ -644,8 +645,9 @@ syntax trees and require controlled gold migrations.
 
 Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
 `28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
-and M2.1B is complete locally. No next slice is selected; JSX/TSX and later extraction work
-remain open.
+and M2.1B is complete and Linux CI verified on PR #4 at implementation commit
+`b680592a25409f5c7bb0abe9f70b24459298c0d0`. No next slice is selected; JSX/TSX and later
+extraction work remain open.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -821,9 +823,12 @@ imports and exports must not be reported as runtime ESM facts.
 - [x] Added an isolated M2.1B partial repository/gold and an explicit check/update helper;
   M1 gold remains unchanged and M2.1A uses only the reviewed additive test projection.
 - [x] Completed the final offline validation, deterministic CLI smoke, documentation audit,
-  and scope audit. M2.1B is complete locally; Milestone 2 remains open.
+  and scope audit. M2.1B is complete; Milestone 2 remains open.
 - [x] Independent final review repaired the runtime shadow audit and exact-shape boundaries,
   added focused regressions, and repeated the complete offline validation and scope audit.
+- [x] PR #4's required Linux `check` job passed for implementation commit
+  `b680592a25409f5c7bb0abe9f70b24459298c0d0` in workflow run `29776458604`; no next
+  Milestone 2 slice has been selected.
 
 Learning checkpoint: explain the boundary between exact CommonJS occurrence matching and
 general call analysis; why runtime shadowing/reassignment and partial parses require
@@ -834,8 +839,8 @@ hiding current production behavior.
 
 ## Milestone 2.1B validation record
 
-Validated locally on Windows on 2026-07-20 with Python 3.11.15. This record does not claim
-Linux or GitHub Actions verification.
+Validated locally on Windows on 2026-07-20 with Python 3.11.15. This local record is kept
+separate from the subsequent Linux GitHub Actions verification below.
 
 - `uv lock --check --offline` resolved 30 packages; `uv sync --dev --locked` resolved 30
   and checked 29. No dependency declaration or lockfile changed.
@@ -857,6 +862,16 @@ Linux or GitHub Actions verification.
   facts, 2 CommonJS export facts, 5 ESM re-export facts, and no warnings. The temporary
   absolute repository path was absent from JSON and the source non-execution sentinel was
   not created.
+
+PR #4 Linux CI closeout on 2026-07-20:
+
+- The required Linux `check` job passed for implementation commit
+  `b680592a25409f5c7bb0abe9f70b24459298c0d0` in workflow run `29776458604`.
+- The job completed successfully in 18 seconds; its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
+- The three symlink skips above remain accurately scoped to the local Windows privilege
+  limitation. M2.1B is complete and Linux CI verified; Milestone 2 remains open, with no
+  next slice selected.
 
 ## Milestone 2.1A validation record
 

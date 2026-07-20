@@ -179,8 +179,9 @@ top-level `export_statement`, are supported:
     manifest contract.
 15. Focused tests, all historical tests, M1 gold check, M2.1A compatibility projection,
     M2.1B gold check, harness smoke, doctor, coverage, and the complete offline validation
-    command set pass. No Linux success is claimed until GitHub Actions runs after a later
-    reviewed implementation PR.
+    command set pass. Linux success is claimed only from GitHub Actions; PR #4's required
+    Linux `check` job supplied that evidence for implementation commit
+    `b680592a25409f5c7bb0abe9f70b24459298c0d0`.
 
 ## Milestone phases
 
@@ -483,6 +484,10 @@ the generated scratch repository. On Windows, do not claim Linux symlink or CI e
 - [x] 2026-07-20: Independent final review found and repaired incomplete/overbroad CommonJS
   shadow auditing plus optional/type-argument require and string-named re-export leakage;
   focused regressions and the complete validation set pass after the repair.
+- [x] 2026-07-20: PR #4's required Linux `check` job passed for implementation commit
+  `b680592a25409f5c7bb0abe9f70b24459298c0d0` in workflow run `29776458604`; M2.1B is
+  complete and Linux CI verified, while Milestone 2 remains open with no next slice
+  selected.
 
 ## Decisions
 
@@ -590,9 +595,19 @@ Final local Windows validation on 2026-07-20:
 - This is local Windows evidence only and does not claim Linux or GitHub Actions
   verification. No commit, push, PR, merge, or later Milestone 2 work was performed.
 
+Linux CI closeout on PR #4 on 2026-07-20:
+
+- GitHub Actions workflow run `29776458604` tested implementation commit
+  `b680592a25409f5c7bb0abe9f70b24459298c0d0`.
+- The required Linux `check` job passed in 18 seconds. Its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
+- This separate CI evidence completes M2.1B Linux verification. The three skips in the
+  local transcript remain Windows symlink-privilege limitations, Milestone 2 remains open,
+  and no next slice is selected or begun.
+
 ## Learning checkpoint
 
-Before M2.1B is complete, the developer must explain in their own words:
+For the completed M2.1B learning checkpoint, the developer must explain in their own words:
 
 1. Why matching one exact top-level `require` shape is not general call extraction, and why
    optional/type-argument variants remain out of scope.
@@ -609,10 +624,12 @@ Before M2.1B is complete, the developer must explain in their own words:
 
 ## Outcome and follow-ups
 
-M2.1B is complete locally: exact guarded CommonJS occurrences, bounded runtime ESM
-re-exports, and selected TypeScript declaration nodes flow through canonical indexing with
-no target resolution or graph import/export edges. M1 bytes remain unchanged; M2.1A bytes
-match through the exact additive test projection; and the isolated M2.1B gold records normal
-current production behavior. Milestone 2 remains open. JSX/TSX and React classification,
-calls, resolution, traversal, overview/context/impact, and MCP require separately reviewed
-later slices. No Linux verification is claimed from this Windows run.
+M2.1B is complete and Linux CI verified: exact guarded CommonJS occurrences, bounded
+runtime ESM re-exports, and selected TypeScript declaration nodes flow through canonical
+indexing with no target resolution or graph import/export edges. M1 bytes remain unchanged;
+M2.1A bytes match through the exact additive test projection; and the isolated M2.1B gold
+records normal current production behavior. PR #4's required Linux `check` job passed for
+implementation commit `b680592a25409f5c7bb0abe9f70b24459298c0d0` in workflow run
+`29776458604`. Milestone 2 remains open. JSX/TSX and React classification, calls,
+resolution, traversal, overview/context/impact, and MCP require separately reviewed later
+slices; no next slice is selected or begun.
