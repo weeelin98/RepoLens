@@ -10,7 +10,7 @@ import repolens.cli as cli_module
 from repolens.cli import app
 from repolens.config import RuntimeConfig
 from repolens.graph.serialization import parse_index_json
-from repolens.models import NodeKind
+from repolens.models import EdgeKind, NodeKind
 
 runner = CliRunner()
 PROJECT_ROOT = Path(__file__).parents[1]
@@ -382,6 +382,12 @@ def test_index_serializes_js_ts_facts_repeatedly_without_paths_or_execution(
         "Component",
         "default",
     ]
+    assert [
+        (fact["kind"], fact["callee"], fact["is_optional"]) for fact in payload["javascript_calls"]
+    ] == [
+        ("member", "globalThis.writeFile", True),
+        ("identifier", "send", False),
+    ]
     assert {node.qualified_name for node in parsed.graph.nodes} >= {
         "src.app",
         "src.app.load",
@@ -400,6 +406,7 @@ def test_index_serializes_js_ts_facts_repeatedly_without_paths_or_execution(
     )
     assert str(tmp_path).encode() not in second
     assert not sentinel.exists()
+    assert all(edge.relation is not EdgeKind.CALLS for edge in parsed.graph.edges)
 
 
 def test_index_malformed_javascript_serializes_conservative_partial_result(

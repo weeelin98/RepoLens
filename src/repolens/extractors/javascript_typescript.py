@@ -16,11 +16,13 @@ from repolens.extractors.base import (
     EsmImportKind,
     EsmReExportKind,
     ExtractionResult,
+    JavaScriptCallKind,
     UnresolvedCommonJsExportFact,
     UnresolvedCommonJsRequireFact,
     UnresolvedEsmExportFact,
     UnresolvedEsmImportFact,
     UnresolvedEsmReExportFact,
+    UnresolvedJavaScriptCallFact,
 )
 from repolens.ids import normalize_repo_path, stable_node_id
 from repolens.models import (
@@ -65,6 +67,27 @@ _SCOPE_BARRIERS = {
     "internal_module",
     "module",
 }
+_CALL_SCOPE_BARRIERS = {
+    "abstract_class_declaration",
+    "ambient_declaration",
+    "class",
+    "class_expression",
+    "class_static_block",
+    "decorator",
+    "generator_function",
+    "generator_function_declaration",
+    "interface_declaration",
+    "internal_module",
+    "module",
+    "object_pattern",
+    "type_alias_declaration",
+}
+_CALL_OWNER_KINDS = {
+    NodeKind.MODULE,
+    NodeKind.FUNCTION,
+    NodeKind.METHOD,
+    NodeKind.REACT_COMPONENT,
+}
 
 
 def _normalized_source_path(path: Path) -> str:
@@ -99,6 +122,10 @@ def _node_sort_key(node: GraphNode) -> tuple[object, ...]:
         node.kind.value,
         node.id,
     )
+
+
+def _syntax_key(node: Node) -> tuple[int, int, str]:
+    return (node.start_byte, node.end_byte, node.type)
 
 
 def _has_type_modifier(node: Node) -> bool:
@@ -319,6 +346,7 @@ class _SyntaxVisitor:
         self.commonjs_requires: list[UnresolvedCommonJsRequireFact] = []
         self.commonjs_exports: list[UnresolvedCommonJsExportFact] = []
         self.reexports: list[UnresolvedEsmReExportFact] = []
+        self.call_owners: dict[tuple[int, int, str], GraphNode] = {}
         self._commonjs_ambiguous_names = commonjs_ambiguous_names
         self._commonjs_enabled = commonjs_enabled
         self._component_classification_enabled = component_classification_enabled
@@ -474,6 +502,8 @@ class _SyntaxVisitor:
             qualified_name=qualified_name,
         )
         self.nodes.append(definition)
+        if kind in _CALL_OWNER_KINDS:
+            self.call_owners[_syntax_key(syntax_node)] = definition
         self.edges.append(
             GraphEdge(
                 source_id=parent.id,
@@ -874,6 +904,187 @@ class _SyntaxVisitor:
         return _static_string_value(self._source, node)
 
 
+class _CallCollector:
+    def __init__(
+        self,
+        source: bytes,
+        source_path: str,
+        module_node: GraphNode,
+        owners: dict[tuple[int, int, str], GraphNode],
+    ) -> None:
+        self._source = source
+        self._source_path = source_path
+        self._module_node = module_node
+        self._owners = owners
+        self.calls: list[UnresolvedJavaScriptCallFact] = []
+
+    def collect_program(self, root: Node) -> None:
+        for child in root.named_children:
+            if child.has_error or child.is_error or child.is_missing:
+                continue
+            self._visit(child, self._module_node)
+
+    def _visit(self, node: Node, owner: GraphNode) -> None:
+        if node.has_error or node.is_error or node.is_missing:
+            return
+        if node.type in {"import_statement", "import_require_clause"}:
+            return
+        if node.type == "function_declaration":
+            self._visit_supported_definition(node)
+            return
+        if node.type == "class_declaration":
+            self._visit_class(node)
+            return
+        if node.type in _VARIABLE_DECLARATION_TYPES:
+            self._visit_variable_declaration(node, owner)
+            return
+        if node.type == "method_definition":
+            self._visit_supported_definition(node)
+            return
+        if node.type == "arrow_function":
+            if self._is_direct_callback(node):
+                self._visit_anonymous_callable(node, owner)
+            return
+        if node.type == "function_expression":
+            if node.child_by_field_name("name") is None and self._is_direct_callback(node):
+                self._visit_anonymous_callable(node, owner)
+            return
+        if node.type in _CALL_SCOPE_BARRIERS or node.type in _TYPESCRIPT_DECLARATION_KINDS:
+            return
+        if node.type == "call_expression":
+            fact = self._call_fact(node, owner)
+            if fact is not None:
+                self.calls.append(fact)
+        for child in node.named_children:
+            if child.type != "type_arguments":
+                self._visit(child, owner)
+
+    def _visit_supported_definition(self, node: Node) -> None:
+        owner = self._owners.get(_syntax_key(node))
+        if owner is None or owner.kind not in _CALL_OWNER_KINDS:
+            return
+        parameters = node.child_by_field_name("parameters")
+        if parameters is not None:
+            self._visit(parameters, owner)
+        body = node.child_by_field_name("body")
+        if body is not None:
+            self._visit(body, owner)
+
+    def _visit_class(self, node: Node) -> None:
+        body = node.child_by_field_name("body")
+        if body is None or body.has_error:
+            return
+        for member in body.named_children:
+            if member.type == "method_definition":
+                owner = self._owners.get(_syntax_key(member))
+                if owner is not None and owner.kind is NodeKind.METHOD:
+                    parameters = member.child_by_field_name("parameters")
+                    if parameters is not None:
+                        self._visit(parameters, owner)
+                    method_body = member.child_by_field_name("body")
+                    if method_body is not None:
+                        self._visit(method_body, owner)
+
+    def _visit_variable_declaration(self, declaration: Node, owner: GraphNode) -> None:
+        for declarator in declaration.named_children:
+            if declarator.type != "variable_declarator" or declarator.has_error:
+                continue
+            value = declarator.child_by_field_name("value")
+            if value is None:
+                continue
+            if value.type == "arrow_function":
+                arrow_owner = self._owners.get(_syntax_key(declarator))
+                if arrow_owner is not None and arrow_owner.kind in _CALL_OWNER_KINDS:
+                    self._visit_anonymous_callable(value, arrow_owner)
+            elif value.type == "function_expression":
+                continue
+            else:
+                self._visit(value, owner)
+
+    def _is_direct_callback(self, node: Node) -> bool:
+        return node.parent is not None and node.parent.type == "arguments"
+
+    def _visit_anonymous_callable(self, node: Node, owner: GraphNode) -> None:
+        parameters = node.child_by_field_name("parameters")
+        if parameters is not None:
+            self._visit(parameters, owner)
+        body = node.child_by_field_name("body")
+        if body is not None:
+            self._visit(body, owner)
+
+    def _call_fact(
+        self,
+        call: Node,
+        owner: GraphNode,
+    ) -> UnresolvedJavaScriptCallFact | None:
+        function = call.child_by_field_name("function")
+        arguments = call.child_by_field_name("arguments")
+        if (
+            function is None
+            or function.has_error
+            or function.is_error
+            or function.is_missing
+            or arguments is None
+            or arguments.type != "arguments"
+        ):
+            return None
+        normalized = self._normalized_callee(function)
+        if normalized is None:
+            return None
+        kind, callee = normalized
+        if kind is JavaScriptCallKind.IDENTIFIER and callee == "require":
+            return None
+        return UnresolvedJavaScriptCallFact(
+            kind=kind,
+            callee=callee,
+            enclosing_id=owner.id,
+            is_optional=self._has_optional_syntax(call, function),
+            source_path=self._source_path,
+            span=_span(call),
+        )
+
+    def _normalized_callee(
+        self,
+        node: Node,
+    ) -> tuple[JavaScriptCallKind, str] | None:
+        if node.type == "identifier":
+            return JavaScriptCallKind.IDENTIFIER, _source_text(self._source, node)
+        if node.type != "member_expression":
+            return None
+        segments = self._member_segments(node)
+        if segments is None:
+            return None
+        return JavaScriptCallKind.MEMBER, ".".join(segments)
+
+    def _member_segments(self, node: Node) -> tuple[str, ...] | None:
+        if node.type in {"identifier", "this", "super"}:
+            return (_source_text(self._source, node),)
+        if node.type != "member_expression":
+            return None
+        object_node = node.child_by_field_name("object")
+        property_node = node.child_by_field_name("property")
+        if (
+            object_node is None
+            or property_node is None
+            or property_node.type != "property_identifier"
+        ):
+            return None
+        prefix = self._member_segments(object_node)
+        if prefix is None:
+            return None
+        return (*prefix, _source_text(self._source, property_node))
+
+    def _has_optional_syntax(self, call: Node, function: Node) -> bool:
+        return any(
+            child.type in {"?.", "optional_chain"} for child in call.children
+        ) or self._subtree_has_optional(function)
+
+    def _subtree_has_optional(self, node: Node) -> bool:
+        return node.type in {"?.", "optional_chain"} or any(
+            self._subtree_has_optional(child) for child in node.children
+        )
+
+
 def _first_error(node: Node) -> Node | None:
     candidates: list[Node] = []
     if node.is_error or node.is_missing:
@@ -1230,6 +1441,13 @@ class JavaScriptTypeScriptExtractor:
             react_imports,
         )
         visitor.visit_program(root)
+        call_collector = _CallCollector(
+            source_bytes,
+            source_path,
+            module_node,
+            visitor.call_owners,
+        )
+        call_collector.collect_program(root)
         diagnostics: tuple[str, ...] = ()
         if first_error is not None:
             diagnostics = (
@@ -1248,5 +1466,8 @@ class JavaScriptTypeScriptExtractor:
                 sorted(visitor.commonjs_exports, key=UnresolvedCommonJsExportFact.sort_key)
             ),
             esm_reexports=tuple(sorted(visitor.reexports, key=UnresolvedEsmReExportFact.sort_key)),
+            javascript_calls=tuple(
+                sorted(call_collector.calls, key=UnresolvedJavaScriptCallFact.sort_key)
+            ),
             diagnostics=diagnostics,
         )

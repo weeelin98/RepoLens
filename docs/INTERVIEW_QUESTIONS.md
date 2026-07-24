@@ -175,3 +175,26 @@
    facts, while an error-free function component beside the error can still survive?
 8. How do historical input profiles, the narrow M2.1A projection, the isolated M2.1B gold,
    and the new M2.2A partial gold prove compatibility without hiding production behavior?
+
+## Milestone 2.2B — Bounded JS-Family Call Occurrence Facts
+
+1. Why is a written call occurrence stored outside `GraphSnapshot` instead of becoming a
+   `calls` edge immediately?
+2. Why can identifier and noncomputed dotted-member callees be preserved directly while
+   computed, wrapped, and call-result callees require later data-flow or runtime knowledge?
+3. How do the pinned JavaScript and TypeScript/TSX grammars represent direct optional-call
+   punctuation differently, and why must the extractor inspect grammar nodes and tokens?
+4. Why does `is_optional` preserve syntax without predicting whether the call executes?
+5. Why are imported and locally assigned aliases retained exactly as written instead of
+   being rewritten to a guessed origin?
+6. How does `enclosing_id` represent lexical ownership for a call inside an anonymous
+   callback without claiming that the outer owner synchronously invokes it?
+7. Why do supported nested named definitions become owners while generators, constructors,
+   accessors, class fields, object methods, and other unindexed named scopes are barriers?
+8. Why may calls in error-free top-level siblings survive a malformed file while bounded
+   CommonJS facts still require a complete error-free program audit?
+9. Why do call occurrences use exact spans and complete deterministic sort keys without
+   receiving stable graph IDs?
+10. How do empty-field omission, exact M2.1A/M2.2A projections, the isolated M2.1B gold,
+    and the new current M2.2B partial gold prove compatibility without hiding production
+    behavior?

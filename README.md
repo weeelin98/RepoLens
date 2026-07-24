@@ -83,7 +83,7 @@ byte-identical. PR #4's required Linux `check` job passed for implementation com
 `b680592a25409f5c7bb0abe9f70b24459298c0d0` in workflow run `29776458604`, completing in
 18 seconds; the exact job record is
 https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
-Milestone 2 remains open, and no next slice has been selected.
+Milestone 2 remained open after that slice.
 
 Milestone 2.2A adds discovery and pinned tree-sitter parsing for exactly `.jsx` and `.tsx`,
 with honest `jsx`/`tsx` language labels. It reuses the completed JavaScript/TypeScript
@@ -99,15 +99,29 @@ reviewed, locally validated on Windows, and Linux CI verified. PR #5's required 
 16 seconds; the exact job record is
 https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
 
+Milestone 2.2B adds default-empty, conditionally serialized unresolved call facts for
+bounded direct syntax in `.js`, `.jsx`, `.ts`, and `.tsx`. It accepts ordinary identifiers
+and noncomputed dotted member chains rooted at an identifier, `this`, or `super`; preserves
+written aliases, exact `call_expression` spans, optional-chain state, and the nearest
+indexed lexical owner; and retains duplicate occurrences. Bare `require`, dynamic import,
+constructors, tagged templates, computed/private or wrapped callees, call-result receivers,
+unsupported named scopes, and malformed subtrees remain absent. These are syntax facts,
+not call nodes or `calls` edges: no target, alias origin, runtime execution, HTTP meaning,
+or same-file/cross-file resolution is claimed. Local Windows validation and independent
+review passed, and PR #6's required Linux `check` passed for implementation commit
+`af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`, completing in
+23 seconds. M2.2B is complete and Linux CI verified; Milestone 2 remains open pending its
+separate acceptance review, and Milestone 3 has not started.
+
 The current `graph.json` contains repository/directory/file structure, Python modules and
 definitions with spans and stable IDs, JavaScript/TypeScript/JSX/TSX modules and bounded
 definition facts, conservative React component classifications, unresolved Python imports,
-ESM imports/exports/re-exports, bounded CommonJS occurrences, Markdown document/section
-hierarchy and direct syntax facts, allowlisted direct project metadata, and deterministic
-diagnostics. It does not contain resolved imports/exports, calls, JSX element nodes,
-overview/query/impact results, or MCP behavior. Milestone 2 remains open; JSX/TSX, React
-classification beyond the M2.2A boundary, calls, and resolution require separately reviewed
-later slices. M2.2B has not been selected or started.
+ESM imports/exports/re-exports, bounded CommonJS occurrences, bounded unresolved
+JavaScript-family call occurrences, Markdown document/section hierarchy and direct syntax
+facts, allowlisted direct project metadata, and deterministic diagnostics. It does not
+contain resolved imports/exports/calls, call edges, JSX element nodes,
+overview/query/impact results, or MCP behavior. Milestone 2 remains open; Milestone 3
+resolution has not started.
 
 ## Development
 

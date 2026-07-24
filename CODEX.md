@@ -2,7 +2,8 @@
 
 Status: Milestone 1 complete; Linux CI verified. M2.1A, M2.1B, and M2.2A are complete and
 Linux CI verified.
-Active slice: none. Milestone 2 remains open; M2.2B has not been selected or started.
+Active slice: none. M2.2B is complete and Linux CI verified. Milestone 2 remains open;
+Milestone 3 has not started.
 M2.2A passed the required Linux `check` on PR #5 at implementation commit
 `7ffb54879195f61a5c0823222b3c342378357bd4`.
 Last updated: 2026-07-24
@@ -171,6 +172,10 @@ ESM accurately. These channels likewise imply neither a resolved target nor grap
 `ExtractionResult.esm_reexports` preserve only the bounded M2.1B occurrence forms. A
 complete program-level ambiguity guard protects CommonJS global names; all three channels
 remain unresolved and create no graph import/export edge.
+`ExtractionResult.javascript_calls` preserves bounded identifier and noncomputed dotted
+member call occurrences for JS/JSX/TS/TSX, including exact call spans, written callees,
+optional syntax, and the nearest indexed lexical owner. These facts do not create call
+nodes or `calls` edges and imply neither target resolution nor runtime execution.
 `ExtractionResult.markdown_facts` similarly holds immutable unresolved links, fenced-code
 blocks, and inline-code syntax. Their containing Markdown section may be known while their
 referenced target remains unresolved, so they do not become `references` edges.
@@ -244,8 +249,8 @@ metrics/evaluation.json
 ```
 
 `graph.json` is the serialized `RepositoryIndexResult`: a nested schema-versioned graph,
-unresolved Python, ESM import/export/re-export, and bounded CommonJS facts, unresolved Markdown facts, direct project
-metadata facts, scanner diagnostics, and
+unresolved Python, ESM import/export/re-export, bounded CommonJS and JS-family call facts,
+unresolved Markdown facts, direct project metadata facts, scanner diagnostics, and
 extractor/source-loading diagnostics. It is
 UTF-8, canonical-keyed, stably sorted, compact, and terminated by one newline. Generated
 dates and machine paths are omitted. The CLI writes a flushed temporary sibling and uses
@@ -647,6 +652,17 @@ syntax trees and require controlled gold migrations.
   pinned grammar parses `render?() { ... }` as a `method_definition` with an unnamed `?`
   token even though TypeScript rejects an optional method implementation semantically.
   M2.2A now excludes that exact token so syntax recovery cannot promote the class.
+- **2026-07-24 — M2.2B keeps direct calls outside the graph.** A frozen unresolved fact
+  records only an identifier or supported dotted member, exact call span, optional syntax,
+  and the actual indexed lexical owner. No target node, stable call ID, confidence, or
+  `calls` edge exists until Milestone 3 resolution can justify one.
+- **2026-07-24 — Anonymous callback ownership is lexical and narrowly bounded.** A direct
+  anonymous function/arrow argument retains the nearest indexed outer owner, while
+  identifier arrows use their own nodes and unindexed named/generator/class/object scopes
+  remain barriers. This captures fixture effect callbacks without claiming invocation.
+- **2026-07-24 — Historical call compatibility uses omission and exact projections.**
+  Empty `javascript_calls` stays absent; M2.1A and M2.2A tests remove only that additive
+  channel, and the isolated M2.1B repository remains byte-identical without projection.
 
 ## Progress
 
@@ -665,8 +681,10 @@ Milestone 1 is complete, including Linux acceptance verification on PR #2 at rep
 `28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
 and M2.1B is complete and Linux CI verified on PR #4 at implementation commit
 `b680592a25409f5c7bb0abe9f70b24459298c0d0`. M2.2A is complete and Linux CI verified on
-PR #5 at implementation commit `7ffb54879195f61a5c0823222b3c342378357bd4`. Milestone 2
-remains open; M2.2B has not been selected or started.
+PR #5 at implementation commit `7ffb54879195f61a5c0823222b3c342378357bd4`. M2.2B is
+complete and Linux CI verified on PR #6 at implementation commit
+`af8e3b01c9e1ef64384e87868350291bbb2dceb2`. Milestone 2 remains open; Milestone 3 has
+not started.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -878,13 +896,94 @@ hiding current production behavior.
 - [x] PR #5's required Linux `check` passed for implementation commit
   `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`. The job
   completed successfully in 16 seconds. M2.2A is complete and Linux CI verified;
-  Milestone 2 remains open, and M2.2B has not been selected or started.
+  Milestone 2 remained open; M2.2B had not been selected at that closeout.
 
 Learning checkpoint: explain why syntax that looks like JSX is insufficient to claim a
 React component; how runtime import evidence, top-level shape, direct-return evidence, and
 partial-tree safeguards bound false positives; why reclassification uses one node but
 preserves containment/exports; and how the historical compatibility profiles prove old
 bytes without filtering current production output.
+
+### Milestone 2.2B — Bounded JS-family call occurrence facts
+
+- [x] Added a frozen identifier/member call-fact contract plus default-empty extraction
+  and repository channels with production empty-field omission.
+- [x] Added exact callee normalization, optional-token adapters, call-expression spans,
+  occurrence-preserving deterministic ordering, and owner validation.
+- [x] Added owner-aware collection for modules, functions, methods, identifier arrows, and
+  React components, with direct anonymous callbacks retaining only lexical outer ownership.
+- [x] Excluded module-loading calls, constructors, tagged templates, computed/private and
+  wrapped callees, call-result receivers, unsupported scopes, and malformed subtrees.
+- [x] Preserved M1 and isolated M2.1B bytes, added only exact M2.1A/M2.2A call-channel
+  projections, and added the TypeScript frontend `m2-2b-graph.json` partial gold.
+- [x] Completed local Windows validation with the three established symlink-privilege
+  skips; no Linux result is claimed.
+- [x] Independent final review found no blocking correctness or scope issue and reproduced
+  the focused/full tests, static checks, harness, doctor, gold checks, and scope audit.
+- [x] Required Linux `check` passed on PR #6 for implementation commit
+  `af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`.
+
+Learning checkpoint: explain why occurrences are not edges; why supported callees preserve
+written aliases and optional syntax without resolution; how lexical callback ownership and
+unsupported-scope barriers differ; and how exact spans, omission, projections, and partial
+gold preserve deterministic current and historical behavior.
+
+## Milestone 2.2B local validation record
+
+Validated locally on Windows on 2026-07-24 with Python 3.11.15. This does not claim Linux
+verification.
+
+- `uv lock --check --offline` resolved 30 packages; `uv sync --dev --locked` resolved 30
+  and checked 29. No dependency declaration or lockfile changed.
+- Ruff left 55 files unchanged, format check and lint passed, and mypy found no issues in
+  37 source files.
+- Focused suites passed: 19 M2.2B cases; 76 complete JavaScript/TypeScript extractor
+  cases; 35 JSX/TSX component cases; 9 model cases; 36 extractor/registry cases; 35 scanner
+  cases plus the same 3 Windows symlink-privilege skips; 30 indexer cases; 23 CLI cases;
+  and 16 M1 acceptance cases. Each individual M2.1A, M2.1B, M2.2A, and M2.2B
+  compatibility/gold test also passed.
+- Full pytest collected 333 tests: 330 passed and 3 skipped only because Windows returned
+  symlink privilege error 1314. Total coverage was 93%; the shared JS-family extractor
+  reported 95%.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  Python 3.11.15/package 0.1.0 healthy with no network requirement. The M1, M2.1B, M2.2A,
+  and M2.2B check-by-default gold helpers all exited 0.
+- M1 gold and the committed M2.1A/M2.1B/M2.2A partial gold stayed unchanged. M2.1A and
+  M2.2A removed only `javascript_calls` in their test/check projections; the isolated
+  M2.1B repository still matched normal current indexing without projection.
+- Two M2.2B partial-gold generations were byte-identical at 6,654 bytes with SHA-256
+  `6db66f57e197ed491236f530dd33a502bb7baa8e67330084dbb2c2d33f6335e6`.
+- Two disposable mixed `.js`/`.jsx`/`.ts`/`.tsx` CLI indexes were byte-identical at 7,687
+  bytes with SHA-256 `d5c3d72d1e61e728db5e7e51bd94d65f0e3b107b412b128f8578884fdc9826d3`.
+  The result round-tripped canonically with 12 nodes, 11 containment edges, and 8 exact
+  call facts. Literal callee, owner, span, optional-state, and ordering assertions passed;
+  no semantic edge, absolute temporary root, timestamp, or execution sentinel appeared.
+- `make check` was attempted and exited 1 before execution because GNU Make is unavailable
+  in this Windows shell. Its lock, format, lint, type-check, full-test, and harness
+  constituents were run independently and passed.
+- Final `git diff --check` exited 0. The scope audit found no dependency, lockfile, CI,
+  graph schema/kind, scanner, CLI-command, resolver, traversal, HTTP, report, query, MCP,
+  fixture-source, or historical-gold change. Exactly the approved production contracts,
+  shared extractor/indexer flow, tests, documentation, M2.2A projection helper, and new
+  M2.2B helper/gold changed.
+
+Independent review on 2026-07-24 found no blocking correctness or scope issue. It
+reproduced the lock check, format check, lint, mypy, 81 focused review tests, the complete
+333-test run with 330 passes and the same 3 Windows symlink skips, 93% total coverage,
+95% JS-family extractor coverage, harness smoke, doctor, all four gold checks, and
+`git diff --check`. GNU Make remained unavailable, and no Linux result is claimed.
+That independent review record is local-only; the subsequent Linux result is recorded
+separately below.
+
+PR #6 Linux CI closeout on 2026-07-24:
+
+- The required Linux `check` passed for implementation commit
+  `af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`.
+- The job completed successfully in 23 seconds; its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/30110044291/job/89537016292.
+- The three local Windows symlink skips remain accurately scoped to privilege error 1314.
+  M2.2B is complete and Linux CI verified. Milestone 2 remains open pending a separate
+  complete acceptance review; Milestone 3 has not started.
 
 ## Milestone 2.2A validation record
 
@@ -929,12 +1028,12 @@ PR #5 Linux CI closeout on 2026-07-20:
 - The job completed successfully in 16 seconds; its exact record is
   https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
 - The three symlink skips above remain accurately scoped to the local Windows privilege
-  limitation. M2.2A is complete and Linux CI verified; Milestone 2 remains open, and M2.2B
-  has not been selected or started.
+  limitation. M2.2A is complete and Linux CI verified; Milestone 2 remained open. At that
+  closeout, M2.2B had not been selected or started.
 
 The scope audit found no changes to dependencies, lockfiles, CI, graph models, base
 contracts, serialization, MCP, calls, resolution, HTTP/routes, traversal, reporting, or
-Milestone 3. Milestone 2 remains open; M2.2B was not selected or started.
+Milestone 3. At that closeout, M2.2B was not selected or started.
 
 ## Milestone 2.1B validation record
 

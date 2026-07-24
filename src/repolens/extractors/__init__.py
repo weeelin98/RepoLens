@@ -9,6 +9,7 @@ from repolens.extractors.base import (
     ExtractionResult,
     Extractor,
     ImportFactKind,
+    JavaScriptCallKind,
     MarkdownFactKind,
     MetadataEcosystem,
     ProjectMetadataFact,
@@ -18,6 +19,7 @@ from repolens.extractors.base import (
     UnresolvedEsmImportFact,
     UnresolvedEsmReExportFact,
     UnresolvedImportFact,
+    UnresolvedJavaScriptCallFact,
     UnresolvedMarkdownFact,
 )
 from repolens.extractors.javascript_typescript import JavaScriptTypeScriptExtractor
@@ -36,6 +38,7 @@ __all__ = [
     "Extractor",
     "ExtractorRegistry",
     "ImportFactKind",
+    "JavaScriptCallKind",
     "JavaScriptTypeScriptExtractor",
     "MarkdownExtractor",
     "MarkdownFactKind",
@@ -49,5 +52,6 @@ __all__ = [
     "UnresolvedEsmImportFact",
     "UnresolvedEsmReExportFact",
     "UnresolvedImportFact",
+    "UnresolvedJavaScriptCallFact",
     "UnresolvedMarkdownFact",
 ]
