@@ -1,11 +1,11 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1 complete; Linux CI verified. M2.1A is complete. M2.1B is complete and
+Status: Milestone 1 complete; Linux CI verified. M2.1A, M2.1B, and M2.2A are complete and
 Linux CI verified.
-Active slice: M2.2A — JSX/TSX Foundation and Conservative React Component Extraction.
-Implementation independently reviewed and locally validated on Windows on 2026-07-20;
-ready for commit. Milestone 2 remains open and no Linux verification is claimed.
-Last updated: 2026-07-20
+Active slice: none. Milestone 2 remains open; M2.2B has not been selected or started.
+M2.2A passed the required Linux `check` on PR #5 at implementation commit
+`7ffb54879195f61a5c0823222b3c342378357bd4`.
+Last updated: 2026-07-24
 
 ## Mission and user problem
 
@@ -664,9 +664,9 @@ syntax trees and require controlled gold migrations.
 Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
 `28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
 and M2.1B is complete and Linux CI verified on PR #4 at implementation commit
-`b680592a25409f5c7bb0abe9f70b24459298c0d0`. M2.2A is implemented, independently
-reviewed, and locally validated on Windows. It is ready for commit; Milestone 2 remains
-open and M2.2B is not selected.
+`b680592a25409f5c7bb0abe9f70b24459298c0d0`. M2.2A is complete and Linux CI verified on
+PR #5 at implementation commit `7ffb54879195f61a5c0823222b3c342378357bd4`. Milestone 2
+remains open; M2.2B has not been selected or started.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -873,8 +873,12 @@ hiding current production behavior.
   TypeScript frontend `m2-2a-graph.json` partial gold and TaskPanel semantic assertions.
 - [x] Completed independent final review, local Windows validation, and scope audit. The
   review rejected optional `render?()` methods from the ordinary class-component boundary
-  and added a regression. No Linux verification is claimed; Milestone 2 remains open and
-  M2.2B is untouched.
+  and added a regression. The three real-symlink tests remained skipped only because local
+  Windows symlink creation returned privilege error 1314.
+- [x] PR #5's required Linux `check` passed for implementation commit
+  `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`. The job
+  completed successfully in 16 seconds. M2.2A is complete and Linux CI verified;
+  Milestone 2 remains open, and M2.2B has not been selected or started.
 
 Learning checkpoint: explain why syntax that looks like JSX is insufficient to claim a
 React component; how runtime import evidence, top-level shape, direct-return evidence, and
@@ -885,7 +889,7 @@ bytes without filtering current production output.
 ## Milestone 2.2A validation record
 
 Independently reviewed and validated locally on Windows on 2026-07-20 with Python 3.11.15.
-Linux CI remains pending; this record makes no Linux claim.
+This local record is kept separate from the subsequent Linux GitHub Actions verification.
 
 - `uv lock --check --offline` and `uv sync --dev --locked` exited 0, resolving 30 packages
   and checking 29. No dependency declaration or lockfile changed.
@@ -917,6 +921,16 @@ Linux CI remains pending; this record makes no Linux claim.
 - `make check` was attempted and exited 1 before execution because GNU Make is unavailable
   in this Windows shell. Its lock, format, lint, type-check, full-test, and harness
   constituents were run directly and passed. Final `git diff --check` exited 0.
+
+PR #5 Linux CI closeout on 2026-07-20:
+
+- The required Linux `check` passed for implementation commit
+  `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`.
+- The job completed successfully in 16 seconds; its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
+- The three symlink skips above remain accurately scoped to the local Windows privilege
+  limitation. M2.2A is complete and Linux CI verified; Milestone 2 remains open, and M2.2B
+  has not been selected or started.
 
 The scope audit found no changes to dependencies, lockfiles, CI, graph models, base
 contracts, serialization, MCP, calls, resolution, HTTP/routes, traversal, reporting, or

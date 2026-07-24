@@ -1,7 +1,8 @@
 # Milestone 2.2A — JSX/TSX Foundation and Conservative React Component Extraction
 
-Status: implemented, independently reviewed, and locally validated on Windows on
-2026-07-20; ready for commit. Milestone 2 remains open.
+Status: complete and Linux CI verified on 2026-07-20 through PR #5 at implementation
+commit `7ffb54879195f61a5c0823222b3c342378357bd4`. Milestone 2 remains open; M2.2B has not
+been selected or started.
 
 ## Purpose and user-visible outcome
 
@@ -787,7 +788,11 @@ deferred and require a separately reviewed future slice before support:
   compatibility, determinism, privacy, non-execution, and scope audits.
 - [x] 2026-07-20: Independent final review reproduced and corrected the optional
   `render?()` false positive, added its focused regression, and repeated the required
-  validation and scope audit. Publication and Linux CI remain deliberately pending.
+  validation and scope audit.
+- [x] 2026-07-20: PR #5's required Linux `check` passed for implementation commit
+  `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`. The job
+  completed successfully in 16 seconds. M2.2A is complete; Milestone 2 remains open, and
+  M2.2B has not been selected or started.
 
 ## Discoveries and surprises
 
@@ -883,11 +888,21 @@ Implementation validation on Windows on 2026-07-20:
   before repeating the focused and full suites reported above.
 - `make check` was attempted and exited 1 before running because GNU Make is not installed
   in this Windows shell. Its lock, format, lint, type-check, full-test, and harness
-  constituents were run directly and passed. No Linux verification is claimed.
+  constituents were run directly and passed.
+
+PR #5 Linux CI closeout on 2026-07-20:
+
+- The required Linux `check` passed for implementation commit
+  `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`.
+- The job completed successfully in 16 seconds; its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
+- The three symlink skips above remain accurately scoped to the local Windows privilege
+  limitation. M2.2A is complete and Linux CI verified; Milestone 2 remains open, and M2.2B
+  has not been selected or started.
 
 ## Learning checkpoint
 
-Before M2.2A can be marked complete, the developer must explain in their own words:
+The completed M2.2A slice retains this developer learning checkpoint:
 
 1. Why `.jsx` can use the JavaScript grammar while `.tsx` requires the TSX capsule, and how
    runtime/grammar ABI compatibility is verified.
@@ -912,12 +927,16 @@ Before M2.2A can be marked complete, the developer must explain in their own wor
 
 ## Outcome and follow-ups
 
-M2.2A is the explicitly approved bounded Milestone 2 slice. Its independently reviewed
-local implementation adds `.jsx`/`.tsx` discovery, correct JavaScript/TSX parser routing,
-completed M2.1 behavior on the new suffixes, and conservative single-node React component
-classification from written runtime React imports plus direct syntax evidence. It is ready
-for commit; publication and Linux verification remain pending.
+M2.2A is the complete, Linux-CI-verified bounded Milestone 2 slice. Its independently
+reviewed implementation adds `.jsx`/`.tsx` discovery, correct JavaScript/TSX parser
+routing, completed M2.1 behavior on the new suffixes, and conservative single-node React
+component classification from written runtime React imports plus direct syntax evidence.
+PR #5's required Linux `check` passed for implementation commit
+`7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`; the job
+completed successfully in 16 seconds at
+https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
 
 Milestone 2 remains open. Calls, resolution, hooks, data flow, JSX graphs, routes, HTTP,
 FastAPI linking, traversal, overview/context/impact, MCP, Milestone 3, and M2.2B remain
-separate future work. Do not begin any of them as part of this ExecPlan.
+separate future work. M2.2B has not been selected or started. Do not begin any of them as
+part of this ExecPlan.

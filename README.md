@@ -93,7 +93,11 @@ classes that have exact direct-JSX-return evidence plus a runtime binding import
 and direct export facts are preserved. Automatic-runtime files, async or nested components,
 wrappers such as `memo`/`forwardRef`, anonymous defaults, indirect returns, JSX element
 graphs, calls, and resolution remain outside this slice. The implementation is independently
-reviewed and locally validated on Windows; no Linux result is claimed yet.
+reviewed, locally validated on Windows, and Linux CI verified. PR #5's required Linux
+`check` passed for implementation commit
+`7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`, completing in
+16 seconds; the exact job record is
+https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
 
 The current `graph.json` contains repository/directory/file structure, Python modules and
 definitions with spans and stable IDs, JavaScript/TypeScript/JSX/TSX modules and bounded
@@ -103,7 +107,7 @@ hierarchy and direct syntax facts, allowlisted direct project metadata, and dete
 diagnostics. It does not contain resolved imports/exports, calls, JSX element nodes,
 overview/query/impact results, or MCP behavior. Milestone 2 remains open; JSX/TSX, React
 classification beyond the M2.2A boundary, calls, and resolution require separately reviewed
-later slices.
+later slices. M2.2B has not been selected or started.
 
 ## Development
 
