@@ -10,6 +10,7 @@ import repolens.cli as cli_module
 from repolens.cli import app
 from repolens.config import RuntimeConfig
 from repolens.graph.serialization import parse_index_json
+from repolens.models import NodeKind
 
 runner = CliRunner()
 PROJECT_ROOT = Path(__file__).parents[1]
@@ -378,6 +379,7 @@ def test_index_serializes_js_ts_facts_repeatedly_without_paths_or_execution(
     assert [fact["kind"] for fact in payload["esm_imports"]] == ["default", "named"]
     assert [fact["exported_name"] for fact in payload["esm_exports"]] == [
         "load",
+        "Component",
         "default",
     ]
     assert {node.qualified_name for node in parsed.graph.nodes} >= {
@@ -386,8 +388,16 @@ def test_index_serializes_js_ts_facts_repeatedly_without_paths_or_execution(
         "src.service",
         "src.service.Service",
         "src.service.Service.run",
+        "src.ignored",
+        "src.ignored.Component",
     }
-    assert all(node.source_path != "src/ignored.tsx" for node in parsed.graph.nodes)
+    assert any(node.source_path == "src/ignored.tsx" for node in parsed.graph.nodes)
+    assert (
+        next(
+            node for node in parsed.graph.nodes if node.qualified_name == "src.ignored.Component"
+        ).kind
+        is NodeKind.FUNCTION
+    )
     assert str(tmp_path).encode() not in second
     assert not sentinel.exists()
 
@@ -412,6 +422,48 @@ def test_index_malformed_javascript_serializes_conservative_partial_result(
         "broken.after",
     }
     assert "warnings=1" in result.output
+
+
+def test_index_serializes_jsx_tsx_components_repeatedly_without_execution(
+    tmp_path: Path,
+) -> None:
+    sentinel = tmp_path / "executed.txt"
+    write_file(
+        tmp_path,
+        "View.jsx",
+        'import React from "react";\n'
+        'import { writeFileSync } from "node:fs";\n'
+        f"writeFileSync({str(sentinel)!r}, 'executed');\n"
+        "export function View() { return <main />; }\n",
+    )
+    write_file(
+        tmp_path,
+        "Panel.tsx",
+        'import { Component } from "react";\n'
+        "export default class Panel extends Component {\n"
+        "  render() { return <section />; }\n"
+        "}\n",
+    )
+
+    first_result = runner.invoke(app, ["index", str(tmp_path)])
+    first = graph_path(tmp_path).read_bytes()
+    second_result = runner.invoke(app, ["index", str(tmp_path)])
+    second = graph_path(tmp_path).read_bytes()
+    parsed = parse_index_json(second.decode("utf-8"))
+
+    assert first_result.exit_code == second_result.exit_code == 0
+    assert first == second
+    assert {
+        node.qualified_name for node in parsed.graph.nodes if node.kind is NodeKind.REACT_COMPONENT
+    } == {"Panel.Panel", "View.View"}
+    assert all(
+        node.language in {"jsx", "tsx"}
+        for node in parsed.graph.nodes
+        if node.kind is NodeKind.REACT_COMPONENT
+    )
+    assert str(tmp_path).encode() not in second
+    assert b"timestamp" not in second.lower()
+    assert not sentinel.exists()
 
 
 def test_index_serializes_m21b_channels_and_counts_commonjs_requires(tmp_path: Path) -> None:

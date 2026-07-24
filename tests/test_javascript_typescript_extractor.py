@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import shutil
 from pathlib import Path
 
 import pytest
@@ -96,17 +97,17 @@ def test_extractor_declares_exact_extensions_and_matches_registry_protocol() -> 
     registry.register(extractor)
 
     assert isinstance(extractor, Extractor)
-    assert extractor.extensions == frozenset({".js", ".ts"})
+    assert extractor.extensions == frozenset({".js", ".jsx", ".ts", ".tsx"})
     assert extractor.filenames == frozenset()
     assert registry.for_path(Path("app.JS")) is extractor
     assert registry.for_path(Path("app.TS")) is extractor
-    assert registry.for_path(Path("app.jsx")) is None
-    assert registry.for_path(Path("app.tsx")) is None
+    assert registry.for_path(Path("app.jsx")) is extractor
+    assert registry.for_path(Path("app.tsx")) is extractor
 
 
-@pytest.mark.parametrize("suffix", [".jsx", ".tsx", ".mjs", ".cjs", ".py"])
+@pytest.mark.parametrize("suffix", [".mjs", ".cjs", ".py"])
 def test_extractor_rejects_unsupported_extensions(suffix: str) -> None:
-    with pytest.raises(ValueError, match=r"only \.js and \.ts"):
+    with pytest.raises(ValueError, match=r"only \.js, \.jsx, \.ts, and \.tsx"):
         JavaScriptTypeScriptExtractor().extract(Path(f"module{suffix}"), "")
 
 
@@ -618,9 +619,12 @@ def test_empty_esm_channels_preserve_old_index_serialization_and_parsing() -> No
     assert parsed.esm_exports == ()
 
 
-def test_typescript_frontend_matches_separate_m21a_partial_gold() -> None:
+def test_typescript_frontend_matches_separate_m21a_partial_gold(tmp_path: Path) -> None:
     fixture = PROJECT_ROOT / "harness" / "fixtures" / "typescript_frontend"
-    result = index_repository(fixture / "repo", RuntimeConfig())
+    repository = tmp_path / "repo"
+    shutil.copytree(fixture / "repo", repository)
+    (repository / ".gitignore").write_text("*.jsx\n*.tsx\n", encoding="utf-8", newline="\n")
+    result = index_repository(repository, RuntimeConfig())
     projected = _m21a_compatibility_projection(result)
     rendered = canonical_index_json(projected)
     expected = (fixture / "m2-1a-graph.json").read_text(encoding="utf-8")

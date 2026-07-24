@@ -156,3 +156,22 @@
    of parser traversal or filesystem order?
 8. How do production empty-field omission and the exact test-only M2.1A projection preserve
    historical bytes without concealing M2.1B behavior from normal indexing?
+
+## Milestone 2.2A — JSX/TSX Foundation and Conservative React Components
+
+1. Why does `.jsx` use the JavaScript grammar while `.tsx` needs the TSX capsule, and why
+   are their graph language labels still distinct from `javascript` and `typescript`?
+2. Why is a written runtime binding import from exact module `react` required even though
+   JSX syntax and PascalCase names can exist in Preact, Solid, or automatic-runtime files?
+3. How do top-level shape, name, runtime-import, and direct-JSX-return checks keep a
+   conservative classification from becoming general framework or data-flow analysis?
+4. Why does a qualifying declaration become exactly one `react_component` node instead of
+   retaining an ordinary function/class node and adding a second component node?
+5. How are declaration spans, qualified names, containment, direct export facts, and stable
+   IDs preserved when the selected node kind changes, including for class methods?
+6. Why do parentheses and fragments count as direct JSX evidence while conditional,
+   logical, callback, nested-control-flow, wrapper-call, async, and indirect returns do not?
+7. Why does any program syntax error disable class-component classification and CommonJS
+   facts, while an error-free function component beside the error can still survive?
+8. How do historical input profiles, the narrow M2.1A projection, the isolated M2.1B gold,
+   and the new M2.2A partial gold prove compatibility without hiding production behavior?

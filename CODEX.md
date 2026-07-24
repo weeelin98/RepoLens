@@ -1,9 +1,11 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1 complete; Linux CI verified. M2.1A is complete. M2.1B is complete and
+Status: Milestone 1 complete; Linux CI verified. M2.1A, M2.1B, and M2.2A are complete and
 Linux CI verified.
-Next active slice: not selected; Milestone 2 remains open.
-Last updated: 2026-07-20
+Active slice: none. Milestone 2 remains open; M2.2B has not been selected or started.
+M2.2A passed the required Linux `check` on PR #5 at implementation commit
+`7ffb54879195f61a5c0823222b3c342378357bd4`.
+Last updated: 2026-07-24
 
 ## Mission and user problem
 
@@ -629,6 +631,22 @@ syntax trees and require controlled gold migrations.
   import-equals bindings, and bare program-level reassignments while excluding erased
   type-only imports, interfaces, type aliases, and `const enum`. Exact require matching also
   excludes optional and type-argument calls; named re-exports require identifier names.
+- **2026-07-20 — M2.2A component classification is suffix-gated and deliberately narrow.**
+  Exactly `.jsx` and `.tsx` add the existing JavaScript and TSX grammar routes with honest
+  `jsx`/`tsx` labels. A named top-level function, identifier arrow, or exact React class can
+  replace its ordinary node with one `react_component` only when an error-free top-level
+  runtime binding import from exact module `react` and a direct JSX return supply evidence.
+  Automatic-runtime inference, wrappers, async/nested/anonymous components, indirect
+  returns, JSX nodes, calls, inheritance edges, and resolution remain deferred.
+- **2026-07-20 — Component reclassification preserves the existing graph path.** The node
+  keeps its declaration/declarator span, qualified name, direct exports, and ordinary
+  containment, with the node kind participating in the existing v1 stable-ID algorithm.
+  Class-body traversal keys on syntax shape so methods remain contained by the single
+  component node. No graph/model/serialization schema or dependency changed.
+- **2026-07-20 — Optional TSX render methods are not ordinary component evidence.** The
+  pinned grammar parses `render?() { ... }` as a `method_definition` with an unnamed `?`
+  token even though TypeScript rejects an optional method implementation semantically.
+  M2.2A now excludes that exact token so syntax recovery cannot promote the class.
 
 ## Progress
 
@@ -646,8 +664,9 @@ syntax trees and require controlled gold migrations.
 Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
 `28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
 and M2.1B is complete and Linux CI verified on PR #4 at implementation commit
-`b680592a25409f5c7bb0abe9f70b24459298c0d0`. No next slice is selected; JSX/TSX and later
-extraction work remain open.
+`b680592a25409f5c7bb0abe9f70b24459298c0d0`. M2.2A is complete and Linux CI verified on
+PR #5 at implementation commit `7ffb54879195f61a5c0823222b3c342378357bd4`. Milestone 2
+remains open; M2.2B has not been selected or started.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -836,6 +855,86 @@ suppression while erased type-only names do not; why re-exports are unresolved f
 than edges; why interface/type declarations differ from ordinary enums at runtime; and how
 empty-field omission plus the exact M2.1A projection preserve historical bytes without
 hiding current production behavior.
+
+### Milestone 2.2A — JSX/TSX foundation and conservative React components
+
+- [x] Added exactly `.jsx` and `.tsx` discovery; `.jsx` uses the pinned JavaScript grammar,
+  `.tsx` uses `language_tsx()`, and file/module/definition labels are `jsx`/`tsx`.
+- [x] Reused the shared M2.1 visitor and unresolved ESM/CommonJS/re-export/type-declaration
+  channels on the new suffixes without changing `.js` or `.ts` production behavior.
+- [x] Added exact runtime React import evidence and conservative top-level named function,
+  arrow, and class classification with direct JSX returns through parentheses/fragments.
+- [x] Represented each match with one `react_component` node while retaining declaration
+  spans, qualified names, containment, class methods, export facts, and deterministic IDs.
+- [x] Added manually authored positive/negative grammar, classification, partial-tree,
+  compatibility, security, privacy, non-execution, fixture, and determinism coverage.
+- [x] Preserved all M1 gold and the isolated M2.1B repository/gold; M2.1A uses only its
+  approved historical input profile and existing narrow additive projection. Added the
+  TypeScript frontend `m2-2a-graph.json` partial gold and TaskPanel semantic assertions.
+- [x] Completed independent final review, local Windows validation, and scope audit. The
+  review rejected optional `render?()` methods from the ordinary class-component boundary
+  and added a regression. The three real-symlink tests remained skipped only because local
+  Windows symlink creation returned privilege error 1314.
+- [x] PR #5's required Linux `check` passed for implementation commit
+  `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`. The job
+  completed successfully in 16 seconds. M2.2A is complete and Linux CI verified;
+  Milestone 2 remains open, and M2.2B has not been selected or started.
+
+Learning checkpoint: explain why syntax that looks like JSX is insufficient to claim a
+React component; how runtime import evidence, top-level shape, direct-return evidence, and
+partial-tree safeguards bound false positives; why reclassification uses one node but
+preserves containment/exports; and how the historical compatibility profiles prove old
+bytes without filtering current production output.
+
+## Milestone 2.2A validation record
+
+Independently reviewed and validated locally on Windows on 2026-07-20 with Python 3.11.15.
+This local record is kept separate from the subsequent Linux GitHub Actions verification.
+
+- `uv lock --check --offline` and `uv sync --dev --locked` exited 0, resolving 30 packages
+  and checking 29. No dependency declaration or lockfile changed.
+- Ruff formatted/checked 53 files and lint passed; mypy found no issues in 36 source files.
+- Focused suites passed: 35 M2.2A cases; 76 complete shared extractor cases; 35 scanner
+  cases with 3 Windows symlink skips; 36 registry/extractor-contract cases; 30 indexer
+  cases; 23 CLI cases; 8 model cases; 16 M1 acceptance cases; plus the individual M2.1A,
+  M2.1B, and M2.2A compatibility/gold tests.
+- Full pytest collected 313 tests: 310 passed and 3 skipped only because Windows returned
+  symlink privilege error 1314. Total coverage was 93%; the shared JS/TS/JSX/TSX extractor
+  reported 94%.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  Python 3.11.15/package 0.1.0 healthy with no network requirement. All three M1, M2.1B,
+  and M2.2A check-by-default gold helpers exited 0.
+- M1 gold and the committed M2.1A/M2.1B partial gold remained byte-identical to base. The
+  M2.1A compatibility test used only its historical `.jsx`/`.tsx` input exclusion plus the
+  existing narrow M2.1B additive projection; the isolated M2.1B repository/helper/gold did
+  not change.
+- Two M2.2A partial-gold generations were byte-identical at 5,550 bytes with SHA-256
+  `3bd24ab7c9d6f2356c3a9955b601f9a61084b58f336c6430ebb753bd19cd1a12`.
+- Two disposable mixed `.js`/`.jsx`/`.ts`/`.tsx` CLI indexes were byte-identical with
+  SHA-256 `bb5b7e530c0e5aeef0bc30a235393ea9ef791f2b2e1c191d8faccda1ab00eac1`:
+  14 nodes, 13 containment edges, 3 ESM imports, 3 ESM exports, and the exact JSX/TSX
+  components `View.View` and `Panel.Panel`. No absolute root, timestamp, forbidden semantic
+  edge, or source-execution sentinel appeared.
+- Independent final review reproduced the pinned TSX shape for `render?()`, fixed its
+  false-positive class classification, and added a focused negative regression. The
+  corrected focused and full suites produced the counts above.
+- `make check` was attempted and exited 1 before execution because GNU Make is unavailable
+  in this Windows shell. Its lock, format, lint, type-check, full-test, and harness
+  constituents were run directly and passed. Final `git diff --check` exited 0.
+
+PR #5 Linux CI closeout on 2026-07-20:
+
+- The required Linux `check` passed for implementation commit
+  `7ffb54879195f61a5c0823222b3c342378357bd4` in workflow run `29784583712`.
+- The job completed successfully in 16 seconds; its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
+- The three symlink skips above remain accurately scoped to the local Windows privilege
+  limitation. M2.2A is complete and Linux CI verified; Milestone 2 remains open, and M2.2B
+  has not been selected or started.
+
+The scope audit found no changes to dependencies, lockfiles, CI, graph models, base
+contracts, serialization, MCP, calls, resolution, HTTP/routes, traversal, reporting, or
+Milestone 3. Milestone 2 remains open; M2.2B was not selected or started.
 
 ## Milestone 2.1B validation record
 

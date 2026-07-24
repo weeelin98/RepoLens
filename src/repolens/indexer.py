@@ -38,9 +38,11 @@ from repolens.scanner import ScanDiagnostic, SourceFile, scan_repository
 _REPOSITORY_SENTINEL = "<repository>"
 _LANGUAGES_BY_SUFFIX = {
     ".js": "javascript",
+    ".jsx": "jsx",
     ".md": "markdown",
     ".py": "python",
     ".ts": "typescript",
+    ".tsx": "tsx",
 }
 
 

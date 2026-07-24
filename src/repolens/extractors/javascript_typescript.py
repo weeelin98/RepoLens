@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import tree_sitter_javascript
@@ -32,7 +33,9 @@ from repolens.models import (
 )
 
 _JAVASCRIPT_LANGUAGE = Language(tree_sitter_javascript.language())
+_JSX_LANGUAGE = _JAVASCRIPT_LANGUAGE
 _TYPESCRIPT_LANGUAGE = Language(tree_sitter_typescript.language_typescript())
+_TSX_LANGUAGE = Language(tree_sitter_typescript.language_tsx())
 _DECLARATION_TYPES = {"function_declaration", "class_declaration"}
 _TYPESCRIPT_DECLARATION_KINDS = {
     "interface_declaration": NodeKind.INTERFACE,
@@ -102,6 +105,196 @@ def _has_type_modifier(node: Node) -> bool:
     return any(not child.is_named and child.type == "type" for child in node.children)
 
 
+@dataclass(frozen=True)
+class _ReactImportEvidence:
+    has_runtime_binding: bool = False
+    object_bindings: frozenset[str] = frozenset()
+    component_bindings: frozenset[str] = frozenset()
+    pure_component_bindings: frozenset[str] = frozenset()
+
+
+def _is_component_name(name: str) -> bool:
+    return (
+        bool(name)
+        and name.isascii()
+        and "A" <= name[0] <= "Z"
+        and all(character.isalpha() or character.isdigit() for character in name)
+    )
+
+
+def _is_top_level_declaration(node: Node) -> bool:
+    parent = node.parent
+    if parent is None:
+        return False
+    if parent.type == "program":
+        return True
+    return (
+        parent.type == "export_statement"
+        and parent.parent is not None
+        and parent.parent.type == "program"
+    )
+
+
+def _is_top_level_declarator(node: Node) -> bool:
+    declaration = node.parent
+    if declaration is None or declaration.type not in _VARIABLE_DECLARATION_TYPES:
+        return False
+    parent = declaration.parent
+    if parent is None:
+        return False
+    if parent.type == "program":
+        return True
+    return (
+        parent.type == "export_statement"
+        and parent.parent is not None
+        and parent.parent.type == "program"
+    )
+
+
+def _has_unnamed_token(node: Node, *types: str) -> bool:
+    expected = set(types)
+    return any(not child.is_named and child.type in expected for child in node.children)
+
+
+def _jsx_evidence_expression(node: Node | None) -> bool:
+    while node is not None and node.type == "parenthesized_expression":
+        children = node.named_children
+        if len(children) != 1:
+            return False
+        node = children[0]
+    return node is not None and node.type in {"jsx_element", "jsx_self_closing_element"}
+
+
+def _has_direct_jsx_return(body: Node | None) -> bool:
+    if body is None or body.type != "statement_block":
+        return False
+    returns = [child for child in body.named_children if child.type == "return_statement"]
+    if len(returns) != 1:
+        return False
+    values = returns[0].named_children
+    return len(values) == 1 and _jsx_evidence_expression(values[0])
+
+
+def _is_function_component(
+    syntax_node: Node,
+    name: str,
+    react_imports: _ReactImportEvidence,
+) -> bool:
+    return (
+        react_imports.has_runtime_binding
+        and _is_component_name(name)
+        and _is_top_level_declaration(syntax_node)
+        and not _has_unnamed_token(syntax_node, "async", "*")
+        and _has_direct_jsx_return(syntax_node.child_by_field_name("body"))
+    )
+
+
+def _is_arrow_component(
+    declarator: Node,
+    arrow: Node,
+    name: str,
+    react_imports: _ReactImportEvidence,
+) -> bool:
+    if (
+        not react_imports.has_runtime_binding
+        or not _is_component_name(name)
+        or not _is_top_level_declarator(declarator)
+        or _has_unnamed_token(arrow, "async")
+    ):
+        return False
+    body = arrow.child_by_field_name("body")
+    if body is None:
+        return False
+    return (
+        _has_direct_jsx_return(body)
+        if body.type == "statement_block"
+        else (_jsx_evidence_expression(body))
+    )
+
+
+def _class_runtime_base(
+    syntax_node: Node,
+    source: bytes,
+    react_imports: _ReactImportEvidence,
+) -> bool:
+    heritage = next(
+        (child for child in syntax_node.named_children if child.type == "class_heritage"),
+        None,
+    )
+    if heritage is None:
+        return False
+    extends = next(
+        (child for child in heritage.named_children if child.type == "extends_clause"),
+        None,
+    )
+    value = (
+        extends.child_by_field_name("value")
+        if extends is not None
+        else next(iter(heritage.named_children), None)
+    )
+    if value is None:
+        return False
+    if value.type == "identifier":
+        local_name = _source_text(source, value)
+        return local_name in (
+            react_imports.component_bindings | react_imports.pure_component_bindings
+        )
+    if value.type != "member_expression":
+        return False
+    object_node = value.child_by_field_name("object")
+    property_node = value.child_by_field_name("property")
+    return (
+        object_node is not None
+        and object_node.type == "identifier"
+        and _source_text(source, object_node) in react_imports.object_bindings
+        and property_node is not None
+        and property_node.type == "property_identifier"
+        and _source_text(source, property_node) in {"Component", "PureComponent"}
+    )
+
+
+def _is_class_component(
+    syntax_node: Node,
+    name: str,
+    source: bytes,
+    react_imports: _ReactImportEvidence,
+    class_components_enabled: bool,
+) -> bool:
+    if (
+        not class_components_enabled
+        or not react_imports.has_runtime_binding
+        or not _is_component_name(name)
+        or not _is_top_level_declaration(syntax_node)
+        or not _class_runtime_base(syntax_node, source, react_imports)
+    ):
+        return False
+    body = syntax_node.child_by_field_name("body")
+    if body is None:
+        return False
+    render_members = []
+    for member in body.named_children:
+        name_node = member.child_by_field_name("name")
+        if name_node is not None and _source_text(source, name_node) == "render":
+            render_members.append(member)
+    if len(render_members) != 1:
+        return False
+    render = render_members[0]
+    return (
+        render.type == "method_definition"
+        and not _has_unnamed_token(
+            render,
+            "static",
+            "async",
+            "*",
+            "get",
+            "set",
+            "abstract",
+            "?",
+        )
+        and _has_direct_jsx_return(render.child_by_field_name("body"))
+    )
+
+
 class _SyntaxVisitor:
     def __init__(
         self,
@@ -111,6 +304,9 @@ class _SyntaxVisitor:
         module_node: GraphNode,
         commonjs_ambiguous_names: frozenset[str],
         commonjs_enabled: bool,
+        component_classification_enabled: bool,
+        class_components_enabled: bool,
+        react_imports: _ReactImportEvidence,
     ) -> None:
         self._source = source
         self._source_path = source_path
@@ -125,6 +321,9 @@ class _SyntaxVisitor:
         self.reexports: list[UnresolvedEsmReExportFact] = []
         self._commonjs_ambiguous_names = commonjs_ambiguous_names
         self._commonjs_enabled = commonjs_enabled
+        self._component_classification_enabled = component_classification_enabled
+        self._class_components_enabled = class_components_enabled
+        self._react_imports = react_imports
 
     def visit_program(self, root: Node) -> None:
         for child in root.named_children:
@@ -167,9 +366,32 @@ class _SyntaxVisitor:
         name_node = syntax_node.child_by_field_name("name")
         if name_node is None or name_node.type not in {"identifier", "type_identifier"}:
             return
-        definition = self._add_definition(syntax_node, name_node, kind)
+        name = self._text(name_node)
+        selected_kind = kind
+        if self._component_classification_enabled and (
+            (
+                kind is NodeKind.FUNCTION
+                and _is_function_component(
+                    syntax_node,
+                    name,
+                    self._react_imports,
+                )
+            )
+            or (
+                kind is NodeKind.CLASS
+                and _is_class_component(
+                    syntax_node,
+                    name,
+                    self._source,
+                    self._react_imports,
+                    self._class_components_enabled,
+                )
+            )
+        ):
+            selected_kind = NodeKind.REACT_COMPONENT
+        definition = self._add_definition(syntax_node, name_node, selected_kind)
         self._scopes.append(definition)
-        if kind is NodeKind.CLASS:
+        if syntax_node.type == "class_declaration":
             body = syntax_node.child_by_field_name("body")
             if body is not None:
                 for child in body.named_children:
@@ -213,7 +435,15 @@ class _SyntaxVisitor:
                 or value_node.has_error
             ):
                 continue
-            definition = self._add_definition(child, name_node, NodeKind.FUNCTION)
+            selected_kind = NodeKind.FUNCTION
+            if self._component_classification_enabled and _is_arrow_component(
+                child,
+                value_node,
+                self._text(name_node),
+                self._react_imports,
+            ):
+                selected_kind = NodeKind.REACT_COMPONENT
+            definition = self._add_definition(child, name_node, selected_kind)
             self._scopes.append(definition)
             body = value_node.child_by_field_name("body")
             if body is not None and body.type == "statement_block":
@@ -641,8 +871,7 @@ class _SyntaxVisitor:
         return self._source[node.start_byte : node.end_byte].decode("utf-8")
 
     def _string_value(self, node: Node) -> str:
-        rendered = self._text(node)
-        return rendered[1:-1] if len(rendered) >= 2 else rendered
+        return _static_string_value(self._source, node)
 
 
 def _first_error(node: Node) -> Node | None:
@@ -661,6 +890,11 @@ def _first_error(node: Node) -> Node | None:
 
 def _source_text(source: bytes, node: Node) -> str:
     return source[node.start_byte : node.end_byte].decode("utf-8")
+
+
+def _static_string_value(source: bytes, node: Node) -> str:
+    rendered = _source_text(source, node)
+    return rendered[1:-1] if len(rendered) >= 2 else rendered
 
 
 def _pattern_binding_names(node: Node, source: bytes) -> set[str]:
@@ -717,6 +951,74 @@ def _import_binding_names(statement: Node, source: bytes) -> set[str]:
                 if local is not None:
                     names.add(_source_text(source, local))
     return names
+
+
+def _react_import_evidence(root: Node, source: bytes) -> _ReactImportEvidence:
+    has_runtime_binding = False
+    object_bindings: set[str] = set()
+    component_bindings: set[str] = set()
+    pure_component_bindings: set[str] = set()
+    for statement in root.named_children:
+        if (
+            statement.type != "import_statement"
+            or statement.has_error
+            or statement.is_error
+            or statement.is_missing
+            or _has_type_modifier(statement)
+        ):
+            continue
+        source_node = statement.child_by_field_name("source")
+        if (
+            source_node is None
+            or source_node.type != "string"
+            or _static_string_value(source, source_node) != "react"
+        ):
+            continue
+        clause = next(
+            (child for child in statement.named_children if child.type == "import_clause"),
+            None,
+        )
+        if clause is None:
+            continue
+        for child in clause.named_children:
+            if child.type == "identifier":
+                has_runtime_binding = True
+                local_name = _source_text(source, child)
+                if local_name == "React":
+                    object_bindings.add(local_name)
+            elif child.type == "namespace_import":
+                local_node = next(
+                    (item for item in child.named_children if item.type == "identifier"),
+                    None,
+                )
+                if local_node is not None:
+                    has_runtime_binding = True
+                    local_name = _source_text(source, local_node)
+                    if local_name == "React":
+                        object_bindings.add(local_name)
+            elif child.type == "named_imports":
+                for specifier in child.named_children:
+                    if specifier.type != "import_specifier" or _has_type_modifier(specifier):
+                        continue
+                    imported_node = specifier.child_by_field_name("name")
+                    if imported_node is None or imported_node.type != "identifier":
+                        continue
+                    local_node = specifier.child_by_field_name("alias") or imported_node
+                    if local_node.type != "identifier":
+                        continue
+                    has_runtime_binding = True
+                    imported_name = _source_text(source, imported_node)
+                    local_name = _source_text(source, local_node)
+                    if imported_name == "Component":
+                        component_bindings.add(local_name)
+                    elif imported_name == "PureComponent":
+                        pure_component_bindings.add(local_name)
+    return _ReactImportEvidence(
+        has_runtime_binding=has_runtime_binding,
+        object_bindings=frozenset(object_bindings),
+        component_bindings=frozenset(component_bindings),
+        pure_component_bindings=frozenset(pure_component_bindings),
+    )
 
 
 def _runtime_declaration_binding_name(node: Node, source: bytes) -> str | None:
@@ -866,7 +1168,7 @@ class JavaScriptTypeScriptExtractor:
 
     @property
     def extensions(self) -> frozenset[str]:
-        return frozenset({".js", ".ts"})
+        return frozenset({".js", ".jsx", ".ts", ".tsx"})
 
     @property
     def filenames(self) -> frozenset[str]:
@@ -878,11 +1180,21 @@ class JavaScriptTypeScriptExtractor:
         if suffix == ".js":
             language_name = "javascript"
             language = _JAVASCRIPT_LANGUAGE
+            component_classification_enabled = False
+        elif suffix == ".jsx":
+            language_name = "jsx"
+            language = _JSX_LANGUAGE
+            component_classification_enabled = True
         elif suffix == ".ts":
             language_name = "typescript"
             language = _TYPESCRIPT_LANGUAGE
+            component_classification_enabled = False
+        elif suffix == ".tsx":
+            language_name = "tsx"
+            language = _TSX_LANGUAGE
+            component_classification_enabled = True
         else:
-            raise ValueError("JavaScriptTypeScriptExtractor supports only .js and .ts")
+            raise ValueError("JavaScriptTypeScriptExtractor supports only .js, .jsx, .ts, and .tsx")
 
         source_bytes = source.encode("utf-8")
         tree = Parser(language).parse(source_bytes)
@@ -905,6 +1217,7 @@ class JavaScriptTypeScriptExtractor:
             qualified_name=module_name,
         )
         first_error = _first_error(root)
+        react_imports = _react_import_evidence(root, source_bytes)
         visitor = _SyntaxVisitor(
             source_bytes,
             source_path,
@@ -912,6 +1225,9 @@ class JavaScriptTypeScriptExtractor:
             module_node,
             _program_commonjs_ambiguity(root, source_bytes) if first_error is None else frozenset(),
             first_error is None,
+            component_classification_enabled,
+            component_classification_enabled and first_error is None,
+            react_imports,
         )
         visitor.visit_program(root)
         diagnostics: tuple[str, ...] = ()

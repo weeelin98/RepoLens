@@ -525,7 +525,7 @@ def test_malformed_javascript_preserves_module_and_error_free_siblings(
     assert result.extractor_diagnostics == ("tree_sitter_syntax_error:broken.js:2:0",)
 
 
-def test_jsx_and_tsx_remain_absent_from_default_index(tmp_path: Path) -> None:
+def test_jsx_and_tsx_are_discovered_with_honest_language_labels(tmp_path: Path) -> None:
     write_file(tmp_path, "src/component.jsx", "export function Component() {}")
     write_file(tmp_path, "src/component.tsx", "export function Component() {}")
     write_file(tmp_path, "src/visible.js", "export function visible() {}")
@@ -534,8 +534,12 @@ def test_jsx_and_tsx_remain_absent_from_default_index(tmp_path: Path) -> None:
 
     source_paths = {node.source_path for node in result.graph.nodes}
     assert "src/visible.js" in source_paths
-    assert "src/component.jsx" not in source_paths
-    assert "src/component.tsx" not in source_paths
+    assert "src/component.jsx" in source_paths
+    assert "src/component.tsx" in source_paths
+    assert node_for_path(result, NodeKind.FILE, "src/component.jsx").language == "jsx"
+    assert node_for_path(result, NodeKind.FILE, "src/component.tsx").language == "tsx"
+    assert node_for_path(result, NodeKind.MODULE, "src/component.jsx").language == "jsx"
+    assert node_for_path(result, NodeKind.MODULE, "src/component.tsx").language == "tsx"
 
 
 def test_javascript_source_is_parsed_but_never_executed(tmp_path: Path) -> None:
