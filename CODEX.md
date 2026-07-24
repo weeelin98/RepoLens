@@ -1,11 +1,11 @@
 # RepoLens Living Project Specification
 
-Status: Milestone 1 complete; Linux CI verified. M2.1A, M2.1B, and M2.2A are complete and
-Linux CI verified.
-Active slice: none. M2.2B is complete and Linux CI verified. Milestone 2 remains open;
-Milestone 3 has not started.
-M2.2A passed the required Linux `check` on PR #5 at implementation commit
-`7ffb54879195f61a5c0823222b3c342378357bd4`.
+Status: Milestones 0, 1, and 2 complete. Milestone 1 and every Milestone 2 slice are Linux
+CI verified.
+Active slice: none. The next phase is planning Milestone 3; Milestone 3 is inactive,
+unapproved, and has not started.
+Milestone 2 closeout was validated from merged `main` commit
+`477f8e1de3150535df22215c61c1a5afa1352c11`.
 Last updated: 2026-07-24
 
 ## Mission and user problem
@@ -185,7 +185,7 @@ Output order is irrelevant because the graph boundary sorts it. Invalid syntax p
 diagnostic and partial results only when correctness can be maintained.
 
 Python uses `ast`, preserving decorator, import, qualified-name, and line/column evidence.
-JS/TS/JSX/TSX later use pinned compatible tree-sitter grammars. Markdown deterministically
+JS/TS/JSX/TSX use pinned compatible tree-sitter grammars. Markdown deterministically
 extracts headings, hierarchy, links, fenced blocks, and inline-code references. Metadata
 extractors parse only documented structural fields. The MVP never asks an LLM to invent an
 edge.
@@ -678,13 +678,11 @@ syntax trees and require controlled gold migrations.
 - [x] Recorded exact results and marked Milestone 0 complete.
 
 Milestone 1 is complete, including Linux acceptance verification on PR #2 at repair commit
-`28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is in progress: M2.1A is complete,
-and M2.1B is complete and Linux CI verified on PR #4 at implementation commit
-`b680592a25409f5c7bb0abe9f70b24459298c0d0`. M2.2A is complete and Linux CI verified on
-PR #5 at implementation commit `7ffb54879195f61a5c0823222b3c342378357bd4`. M2.2B is
-complete and Linux CI verified on PR #6 at implementation commit
-`af8e3b01c9e1ef64384e87868350291bbb2dceb2`. Milestone 2 remains open; Milestone 3 has
-not started.
+`28ad7fab44fa08d66934dacf541f9b366db14673`. Milestone 2 is complete after its separate
+acceptance review on merged `main` commit
+`477f8e1de3150535df22215c61c1a5afa1352c11`. M2.1A, M2.1B, M2.2A, and M2.2B are each
+complete and Linux CI verified on PRs #3, #4, #5, and #6 respectively. The next phase is
+planning Milestone 3; Milestone 3 is inactive, unapproved, and has not started.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -840,6 +838,9 @@ not started.
   the full offline validation plus two-run manual smoke. JSX/TSX and M2.1B remain open.
 - [x] Final review fixes omit statement-level and inline type-only ESM syntax while retaining
   runtime specifiers in mixed clauses, and align the Pydantic floor with `exclude_if` at 2.12.
+- [x] PR #3's required Linux `check` passed for implementation commit
+  `6d3ee2357a76e7e70e520068b8407f9b9d642692` in workflow run `29599151101`; job
+  `87946793668` completed successfully in 17 seconds.
 
 Learning checkpoint: explain runtime/grammar ABI compatibility; byte-column/end-coordinate
 mapping; why ESM facts are not edges; why recoverable tree-sitter errors differ from a
@@ -860,7 +861,7 @@ imports and exports must not be reported as runtime ESM facts.
 - [x] Added an isolated M2.1B partial repository/gold and an explicit check/update helper;
   M1 gold remains unchanged and M2.1A uses only the reviewed additive test projection.
 - [x] Completed the final offline validation, deterministic CLI smoke, documentation audit,
-  and scope audit. M2.1B is complete; Milestone 2 remains open.
+  and scope audit. M2.1B is complete; at that slice closeout, Milestone 2 remained open.
 - [x] Independent final review repaired the runtime shadow audit and exact-shape boundaries,
   added focused regressions, and repeated the complete offline validation and scope audit.
 - [x] PR #4's required Linux `check` job passed for implementation commit
@@ -928,6 +929,81 @@ written aliases and optional syntax without resolution; how lexical callback own
 unsupported-scope barriers differ; and how exact spans, omission, projections, and partial
 gold preserve deterministic current and historical behavior.
 
+### Milestone 2 complete acceptance closeout
+
+- [x] Reconfirmed clean synchronized `main` at PR #6 merge commit
+  `477f8e1de3150535df22215c61c1a5afa1352c11`.
+- [x] Independently re-read the governing specification and all four completed Milestone 2
+  ExecPlans, then audited scanner, registry, extraction contracts, shared JS-family
+  extractor, indexer, models, serialization, CLI, fixtures, gold helpers, and acceptance
+  tests.
+- [x] Verified exact `.js`/`.jsx`/`.ts`/`.tsx` discovery, parser routing, language labels,
+  named definitions, selected TypeScript declarations, conservative React components,
+  bounded ESM/CommonJS facts, bounded unresolved calls, spans, owners, stable IDs, partial
+  trees, ordering, privacy, and source non-execution.
+- [x] Verified that extraction creates no import/export/call/inheritance/HTTP semantic
+  edge and that resolution, traversal, overview, impact, query, context-pack, and MCP
+  behavior remain deferred.
+- [x] Reproduced all four historical/current gold checks, repeated M2.2B gold bytes, and a
+  repeated mixed four-suffix CLI index; all committed M1/M2 gold remained byte-identical.
+- [x] Verified PR #3, #4, #5, and #6 required Linux `check` jobs for their exact
+  implementation commits.
+- [x] Completed the full local Windows acceptance run with the three established
+  symlink-privilege skips reported separately; GNU Make remained unavailable, while every
+  `make check` constituent passed directly.
+- [x] Marked Milestone 2 complete. The next phase is planning Milestone 3, which remains
+  inactive, unapproved, and unstarted.
+
+Learning checkpoint: explain the full Milestone 2 data flow from deterministic discovery
+through pinned tree-sitter parsing, direct syntax facts, lexical ownership, canonical
+serialization, and historical compatibility; contrast partial-tree recovery with Python
+AST failure; and explain why import/export/call facts are not resolver-derived graph edges.
+
+## Milestone 2 complete acceptance validation record
+
+Validated locally on Windows on 2026-07-24 from clean merged `main` commit
+`477f8e1de3150535df22215c61c1a5afa1352c11`. This local record does not claim Linux
+execution.
+
+- `uv lock --check --offline` and `uv sync --dev --locked` exited 0; 30 packages resolved
+  and 29 checked. Ruff format check reported 55 files already formatted, Ruff lint passed,
+  and mypy found no issues in 37 source files.
+- Full pytest collected 333 tests: 330 passed and 3 skipped only because Windows returned
+  symlink privilege error 1314. Total coverage was 93%; the shared JS-family extractor
+  reported 95%.
+- Harness smoke validated 5 fixtures, 5 questions, and 5 diff cases. Doctor reported
+  Python 3.11.15/package 0.1.0 healthy with no network requirement.
+- The M1, M2.1B, M2.2A, and M2.2B check-only gold helpers all exited 0. Every committed
+  `m1-graph.json` and M2 partial-gold file remained byte-identical to `HEAD`.
+- Two M2.2B generations were identical at 6,654 bytes with SHA-256
+  `6db66f57e197ed491236f530dd33a502bb7baa8e67330084dbb2c2d33f6335e6`.
+- Two disposable mixed `.js`/`.jsx`/`.ts`/`.tsx` CLI indexes were identical at 9,819 bytes
+  with SHA-256 `98a9d1465f441506c99fcad85e7a6250e821ad572a219e25b02facb43640a9c6`.
+  The result contained 16 nodes, 15 containment edges, and 6 bounded call facts; exact
+  language labels, absolute-root/timestamp absence, source non-execution, and absence of
+  every premature semantic edge were verified.
+- `make check` was attempted and exited 1 before execution because GNU Make is unavailable
+  in this Windows shell. Its format, lint, type-check, full-test, and harness constituents
+  were run directly and passed.
+- `git diff --check` exited 0 before the documentation closeout. The scope audit found no
+  production, test, fixture, gold, dependency, lockfile, schema, CI, resolver, traversal,
+  report, query, context-pack, HTTP, MCP, or Milestone 3 change.
+
+Verified Linux slice evidence:
+
+- PR #3: implementation `6d3ee2357a76e7e70e520068b8407f9b9d642692`; workflow
+  `29599151101`; `check` job `87946793668`; success in 17 seconds;
+  https://github.com/weeelin98/RepoLens/actions/runs/29599151101/job/87946793668.
+- PR #4: implementation `b680592a25409f5c7bb0abe9f70b24459298c0d0`; workflow
+  `29776458604`; `check` job `88466891502`; success in 18 seconds;
+  https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
+- PR #5: implementation `7ffb54879195f61a5c0823222b3c342378357bd4`; workflow
+  `29784583712`; `check` job `88493214124`; success in 16 seconds;
+  https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124.
+- PR #6: implementation `af8e3b01c9e1ef64384e87868350291bbb2dceb2`; workflow
+  `30110044291`; `check` job `89537016292`; success in 23 seconds;
+  https://github.com/weeelin98/RepoLens/actions/runs/30110044291/job/89537016292.
+
 ## Milestone 2.2B local validation record
 
 Validated locally on Windows on 2026-07-24 with Python 3.11.15. This does not claim Linux
@@ -982,8 +1058,8 @@ PR #6 Linux CI closeout on 2026-07-24:
 - The job completed successfully in 23 seconds; its exact record is
   https://github.com/weeelin98/RepoLens/actions/runs/30110044291/job/89537016292.
 - The three local Windows symlink skips remain accurately scoped to privilege error 1314.
-  M2.2B is complete and Linux CI verified. Milestone 2 remains open pending a separate
-  complete acceptance review; Milestone 3 has not started.
+  M2.2B is complete and Linux CI verified. At that PR closeout, Milestone 2 remained open
+  pending this separate complete acceptance review and Milestone 3 had not started.
 
 ## Milestone 2.2A validation record
 
@@ -1068,8 +1144,8 @@ PR #4 Linux CI closeout on 2026-07-20:
 - The job completed successfully in 18 seconds; its exact record is
   https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502.
 - The three symlink skips above remain accurately scoped to the local Windows privilege
-  limitation. M2.1B is complete and Linux CI verified; Milestone 2 remains open, with no
-  next slice selected.
+  limitation. M2.1B is complete and Linux CI verified; at that slice closeout, Milestone 2
+  remained open with no next slice selected.
 
 ## Milestone 2.1A validation record
 
@@ -1088,7 +1164,8 @@ Validated locally on 2026-07-17 from the repository root with Python 3.11.15:
   12 edges, 1 ESM import, 2 ESM exports, and 1 expected syntax diagnostic. `.tsx` was
   excluded and the temporary absolute repository path did not enter JSON.
 - All four M1 gold outputs stayed byte-identical; the separate TypeScript frontend M2.1A
-  partial gold matched. Milestone 2 remains open; the next proposed slice is M2.1B.
+  partial gold matched. At that slice closeout, Milestone 2 remained open and the next
+  proposed slice was M2.1B.
 
 Final pre-commit review fixes were validated locally on 2026-07-17 with Python 3.11.15:
 

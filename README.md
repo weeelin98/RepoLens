@@ -110,8 +110,36 @@ not call nodes or `calls` edges: no target, alias origin, runtime execution, HTT
 or same-file/cross-file resolution is claimed. Local Windows validation and independent
 review passed, and PR #6's required Linux `check` passed for implementation commit
 `af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`, completing in
-23 seconds. M2.2B is complete and Linux CI verified; Milestone 2 remains open pending its
-separate acceptance review, and Milestone 3 has not started.
+23 seconds. M2.2B is complete and Linux CI verified.
+
+Milestone 2 is complete after a separate whole-milestone acceptance review on merged
+`main` commit `477f8e1de3150535df22215c61c1a5afa1352c11`. The review reconfirmed exact
+four-suffix discovery/routing, pinned compatible grammars, named definitions and selected
+TypeScript declarations, conservative React components, bounded ESM/CommonJS/call
+occurrences, exact spans and lexical owners, partial-tree safeguards, stable deterministic
+bytes, path privacy, source non-execution, and historical M1/M2 compatibility. The complete
+Windows suite passed 330 tests with only the three established error-1314 symlink-privilege
+skips; all four check-only gold helpers passed. GNU Make was unavailable locally, so no
+Windows `make check` pass is claimed; every constituent command passed directly.
+
+Every completed Milestone 2 slice has exact Linux CI evidence:
+
+- PR #3, M2.1A: implementation `6d3ee2357a76e7e70e520068b8407f9b9d642692`,
+  workflow `29599151101`, required `check` job
+  https://github.com/weeelin98/RepoLens/actions/runs/29599151101/job/87946793668,
+  successful in 17 seconds.
+- PR #4, M2.1B: implementation `b680592a25409f5c7bb0abe9f70b24459298c0d0`,
+  workflow `29776458604`, required `check` job
+  https://github.com/weeelin98/RepoLens/actions/runs/29776458604/job/88466891502,
+  successful in 18 seconds.
+- PR #5, M2.2A: implementation `7ffb54879195f61a5c0823222b3c342378357bd4`,
+  workflow `29784583712`, required `check` job
+  https://github.com/weeelin98/RepoLens/actions/runs/29784583712/job/88493214124,
+  successful in 16 seconds.
+- PR #6, M2.2B: implementation `af8e3b01c9e1ef64384e87868350291bbb2dceb2`,
+  workflow `30110044291`, required `check` job
+  https://github.com/weeelin98/RepoLens/actions/runs/30110044291/job/89537016292,
+  successful in 23 seconds.
 
 The current `graph.json` contains repository/directory/file structure, Python modules and
 definitions with spans and stable IDs, JavaScript/TypeScript/JSX/TSX modules and bounded
@@ -120,8 +148,8 @@ ESM imports/exports/re-exports, bounded CommonJS occurrences, bounded unresolved
 JavaScript-family call occurrences, Markdown document/section hierarchy and direct syntax
 facts, allowlisted direct project metadata, and deterministic diagnostics. It does not
 contain resolved imports/exports/calls, call edges, JSX element nodes,
-overview/query/impact results, or MCP behavior. Milestone 2 remains open; Milestone 3
-resolution has not started.
+overview/query/impact results, or MCP behavior. Milestone 2 is complete. Milestone 3
+planning is the next phase, but Milestone 3 is inactive, unapproved, and has not started.
 
 ## Development
 
