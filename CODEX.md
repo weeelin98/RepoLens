@@ -2,9 +2,8 @@
 
 Status: Milestone 1 complete; Linux CI verified. M2.1A, M2.1B, and M2.2A are complete and
 Linux CI verified.
-Active slice: M2.2B — Bounded JS-Family Call Occurrence Facts. Local implementation and
-Windows validation and independent review are complete; required Linux CI remains pending.
-Milestone 2 remains open; Milestone 3 has not started.
+Active slice: none. M2.2B is complete and Linux CI verified. Milestone 2 remains open;
+Milestone 3 has not started.
 M2.2A passed the required Linux `check` on PR #5 at implementation commit
 `7ffb54879195f61a5c0823222b3c342378357bd4`.
 Last updated: 2026-07-24
@@ -683,8 +682,9 @@ Milestone 1 is complete, including Linux acceptance verification on PR #2 at rep
 and M2.1B is complete and Linux CI verified on PR #4 at implementation commit
 `b680592a25409f5c7bb0abe9f70b24459298c0d0`. M2.2A is complete and Linux CI verified on
 PR #5 at implementation commit `7ffb54879195f61a5c0823222b3c342378357bd4`. M2.2B is
-implemented, locally validated, and independently reviewed on Windows, with Linux CI still
-pending. Milestone 2 remains open; Milestone 3 has not started.
+complete and Linux CI verified on PR #6 at implementation commit
+`af8e3b01c9e1ef64384e87868350291bbb2dceb2`. Milestone 2 remains open; Milestone 3 has
+not started.
 
 ### Milestone 1.1 — Repository scanner (complete)
 
@@ -920,7 +920,8 @@ bytes without filtering current production output.
   skips; no Linux result is claimed.
 - [x] Independent final review found no blocking correctness or scope issue and reproduced
   the focused/full tests, static checks, harness, doctor, gold checks, and scope audit.
-- [ ] Required Linux CI for the eventual exact implementation commit.
+- [x] Required Linux `check` passed on PR #6 for implementation commit
+  `af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`.
 
 Learning checkpoint: explain why occurrences are not edges; why supported callees preserve
 written aliases and optional syntax without resolution; how lexical callback ownership and
@@ -971,8 +972,18 @@ reproduced the lock check, format check, lint, mypy, 81 focused review tests, th
 333-test run with 330 passes and the same 3 Windows symlink skips, 93% total coverage,
 95% JS-family extractor coverage, harness smoke, doctor, all four gold checks, and
 `git diff --check`. GNU Make remained unavailable, and no Linux result is claimed.
-M2.2B is ready for publication and Linux CI, but is not complete or Linux verified.
-Milestone 2 remains open; Milestone 3 has not started.
+That independent review record is local-only; the subsequent Linux result is recorded
+separately below.
+
+PR #6 Linux CI closeout on 2026-07-24:
+
+- The required Linux `check` passed for implementation commit
+  `af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`.
+- The job completed successfully in 23 seconds; its exact record is
+  https://github.com/weeelin98/RepoLens/actions/runs/30110044291/job/89537016292.
+- The three local Windows symlink skips remain accurately scoped to privilege error 1314.
+  M2.2B is complete and Linux CI verified. Milestone 2 remains open pending a separate
+  complete acceptance review; Milestone 3 has not started.
 
 ## Milestone 2.2A validation record
 

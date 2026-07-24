@@ -107,8 +107,11 @@ indexed lexical owner; and retains duplicate occurrences. Bare `require`, dynami
 constructors, tagged templates, computed/private or wrapped callees, call-result receivers,
 unsupported named scopes, and malformed subtrees remain absent. These are syntax facts,
 not call nodes or `calls` edges: no target, alias origin, runtime execution, HTTP meaning,
-or same-file/cross-file resolution is claimed. Local Windows implementation validation
-and independent review are complete; required Linux CI remains pending.
+or same-file/cross-file resolution is claimed. Local Windows validation and independent
+review passed, and PR #6's required Linux `check` passed for implementation commit
+`af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`, completing in
+23 seconds. M2.2B is complete and Linux CI verified; Milestone 2 remains open pending its
+separate acceptance review, and Milestone 3 has not started.
 
 The current `graph.json` contains repository/directory/file structure, Python modules and
 definitions with spans and stable IDs, JavaScript/TypeScript/JSX/TSX modules and bounded

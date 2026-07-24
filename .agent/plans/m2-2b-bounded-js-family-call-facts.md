@@ -1,9 +1,9 @@
 # Milestone 2.2B — Bounded JS-Family Call Occurrence Facts
 
-Status: approved and active on 2026-07-24. Local implementation and Windows validation are
-complete on `m2-2b-bounded-js-family-call-facts`; independent review found no blocking
-issue, and the slice is ready for publication. Required Linux CI, completion, Milestone 3,
-and later work remain pending or unauthorized.
+Status: complete on 2026-07-24. Local implementation, Windows validation, independent
+review, publication, and the required Linux CI passed on
+`m2-2b-bounded-js-family-call-facts`. Milestone 2 remains open pending a separate complete
+acceptance review; Milestone 3 and later work remain unauthorized.
 
 ## Purpose and user-visible outcome
 
@@ -714,7 +714,8 @@ independent review, commit, and publication:
 - [x] Independent final review: completed on 2026-07-24 with no blocking correctness or
   scope finding; focused/full tests, static checks, harness, doctor, gold checks, and the
   final scope audit were reproduced.
-- [ ] Linux CI: not begun.
+- [x] Linux CI: the required `check` passed on PR #6 for implementation commit
+  `af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`.
 
 ## Planning validation transcript
 
@@ -780,6 +781,18 @@ compatibility, or scope issue:
   optional syntax from execution, written aliases from targets, lexical callback ownership
   from invocation order, and the Milestone 3–6 deferred behavior.
 
+## Linux CI closeout
+
+PR #6's required Linux `check` passed on 2026-07-24 for exact implementation commit
+`af8e3b01c9e1ef64384e87868350291bbb2dceb2` in workflow run `30110044291`. Job
+`89537016292` completed successfully in 23 seconds:
+https://github.com/weeelin98/RepoLens/actions/runs/30110044291/job/89537016292.
+
+This Linux result is separate from the local Windows record and does not erase or
+reinterpret the three local symlink-privilege skips. M2.2B is complete and Linux CI
+verified. Milestone 2 remains open pending its separate acceptance review; Milestone 3 has
+not started.
+
 No local Windows result is presented as Linux verification.
 
 ## Learning checkpoint
@@ -832,7 +845,7 @@ Milestone 3, and all later behavior are explicitly outside M2.2B.
 M2.2B now implements bounded unresolved JS-family call occurrence extraction and addresses
 the remaining direct call-fact portion of Milestone 2 without starting resolution or later
 product behavior. Local Windows validation is complete with the established three
-symlink-privilege skips; independent review and required Linux CI remain pending.
+symlink-privilege skips; independent review and required Linux CI passed.
 
-Do not stage, commit, publish, mark the slice complete, or select Milestone 3 during this
-implementation handoff. Milestone 2 remains open.
+M2.2B is complete and Linux CI verified. Milestone 2 remains open pending a separate
+complete acceptance review; Milestone 3 has not started.
