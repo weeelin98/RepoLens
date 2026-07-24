@@ -5,6 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+from repolens.extractors import JavaScriptCallKind, UnresolvedJavaScriptCallFact
 from repolens.graph.serialization import (
     canonical_graph_json,
     canonical_index_json,
@@ -138,3 +139,35 @@ def test_m21b_node_kinds_are_additive_without_graph_schema_change() -> None:
         "type_alias",
         "enum",
     }
+
+
+def test_m22b_call_facts_round_trip_outside_the_unchanged_graph_schema() -> None:
+    owner = GraphNode(
+        id="module:owner",
+        kind=NodeKind.MODULE,
+        label="module",
+        source_path="module.ts",
+        qualified_name="module",
+    )
+    fact = UnresolvedJavaScriptCallFact(
+        kind=JavaScriptCallKind.MEMBER,
+        callee="client.load",
+        enclosing_id=owner.id,
+        source_path="module.ts",
+        span=SourceSpan(
+            start_line=2,
+            end_line=2,
+            start_column=0,
+            end_column=13,
+        ),
+    )
+    result = RepositoryIndexResult(
+        graph=GraphSnapshot(nodes=(owner,)),
+        javascript_calls=(fact,),
+    )
+    rendered = canonical_index_json(result)
+
+    assert parse_index_json(rendered) == result
+    assert result.graph.schema_version == 1
+    assert json.loads(rendered)["javascript_calls"][0]["callee"] == "client.load"
+    assert all(edge.relation is not EdgeKind.CALLS for edge in result.graph.edges)

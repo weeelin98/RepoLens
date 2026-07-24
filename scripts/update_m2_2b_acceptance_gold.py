@@ -1,4 +1,4 @@
-"""Check or explicitly update canonical Milestone 2.2A partial gold."""
+"""Check or explicitly update canonical Milestone 2.2B partial gold."""
 
 from __future__ import annotations
 
@@ -8,24 +8,21 @@ from pathlib import Path
 
 from repolens.config import RuntimeConfig
 from repolens.graph.serialization import canonical_index_json, parse_index_json
-from repolens.indexer import RepositoryIndexResult, index_repository
+from repolens.indexer import index_repository
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_ROOT = PROJECT_ROOT / "harness" / "fixtures" / "typescript_frontend"
 REPOSITORY = FIXTURE_ROOT / "repo"
-GOLD_PATH = FIXTURE_ROOT / "m2-2a-graph.json"
+GOLD_PATH = FIXTURE_ROOT / "m2-2b-graph.json"
 
 
 def generated_graph() -> str:
-    current = index_repository(REPOSITORY, RuntimeConfig())
-    payload = current.model_dump(mode="python")
-    calls = payload.pop("javascript_calls")
-    if not calls:
-        raise ValueError("current M2.2A fixture must expose M2.2B call behavior")
-    rendered = canonical_index_json(RepositoryIndexResult.model_validate(payload))
+    rendered = canonical_index_json(index_repository(REPOSITORY, RuntimeConfig()))
     validated = parse_index_json(rendered)
     if canonical_index_json(validated) != rendered:
-        raise ValueError("canonical round-trip changed M2.2A partial output")
+        raise ValueError("canonical round-trip changed M2.2B partial output")
+    if not validated.javascript_calls:
+        raise ValueError("M2.2B partial output must contain JavaScript call facts")
     return rendered
 
 
@@ -34,8 +31,8 @@ def difference(expected: str, actual: str) -> str:
         difflib.unified_diff(
             expected.splitlines(keepends=True),
             actual.splitlines(keepends=True),
-            fromfile="typescript_frontend/m2-2a-graph.json",
-            tofile="typescript_frontend/generated-m2-2a-graph.json",
+            fromfile="typescript_frontend/m2-2b-graph.json",
+            tofile="typescript_frontend/generated-m2-2b-graph.json",
         )
     )
 
@@ -45,7 +42,7 @@ def main() -> int:
     parser.add_argument(
         "--update",
         action="store_true",
-        help="explicitly replace committed M2.2A gold after reviewing semantic changes",
+        help="explicitly replace committed M2.2B gold after reviewing semantic changes",
     )
     arguments = parser.parse_args()
     rendered = generated_graph()
@@ -59,9 +56,9 @@ def main() -> int:
     expected = GOLD_PATH.read_text(encoding="utf-8")
     if expected != rendered:
         print(difference(expected, rendered))
-        print("M2.2A gold differs; review the diff, then run with --update if intentional.")
+        print("M2.2B gold differs; review the diff, then run with --update if intentional.")
         return 1
-    print("M2.2A partial gold matches")
+    print("M2.2B partial gold matches")
     return 0
 
 

@@ -484,8 +484,13 @@ def test_javascript_and_typescript_facts_integrate_without_import_export_edges(
         (EsmExportKind.DECLARATION, "load", "load", False),
         (EsmExportKind.DECLARATION, "default", "Service", True),
     ]
+    load = next(node for node in result.graph.nodes if node.qualified_name == "web.app.load")
+    assert [(fact.callee, fact.enclosing_id) for fact in result.javascript_calls] == [
+        ("send", load.id)
+    ]
     assert all(
-        edge.relation not in {EdgeKind.IMPORTS, EdgeKind.EXPORTS} for edge in result.graph.edges
+        edge.relation not in {EdgeKind.IMPORTS, EdgeKind.EXPORTS, EdgeKind.CALLS}
+        for edge in result.graph.edges
     )
 
 

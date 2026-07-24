@@ -630,6 +630,8 @@ def test_typescript_frontend_matches_separate_m21a_partial_gold(tmp_path: Path) 
     expected = (fixture / "m2-1a-graph.json").read_text(encoding="utf-8")
 
     assert rendered == expected
+    assert [fact.callee for fact in result.javascript_calls] == ["fetch", "response.json"]
+    assert projected.javascript_calls == ()
     assert projected == parse_index_json(expected)
     assert {node.source_path for node in result.graph.nodes} == {
         ".",
@@ -935,6 +937,7 @@ def test_m21b_isolated_partial_gold_matches_semantics_and_repeated_generation() 
         end_column=1,
     )
     assert [fact.module for fact in result.commonjs_requires] == ["setup", "./client"]
+    assert result.javascript_calls == ()
     assert [fact.kind for fact in result.esm_reexports] == [
         EsmReExportKind.NAMED,
         EsmReExportKind.NAMED,

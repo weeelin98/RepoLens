@@ -59,6 +59,13 @@ class EsmReExportKind(StrEnum):
     NAMESPACE = "namespace"
 
 
+class JavaScriptCallKind(StrEnum):
+    """Bounded JavaScript-family callee shapes preserved before resolution."""
+
+    IDENTIFIER = "identifier"
+    MEMBER = "member"
+
+
 class MarkdownFactKind(StrEnum):
     """Direct Markdown syntax forms that remain unresolved during extraction."""
 
@@ -326,6 +333,49 @@ class UnresolvedEsmReExportFact(BaseModel):
         )
 
 
+class UnresolvedJavaScriptCallFact(BaseModel):
+    """One bounded JS-family call occurrence without a resolved target."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: JavaScriptCallKind
+    callee: str = Field(min_length=1)
+    enclosing_id: str = Field(min_length=1)
+    is_optional: bool = False
+    source_path: str = Field(min_length=1)
+    span: SourceSpan
+
+    _source_path_is_relative = field_validator("source_path")(_normalize_fact_source_path)
+
+    @model_validator(mode="after")
+    def validate_callee_shape(self) -> Self:
+        segments = self.callee.split(".")
+        if (
+            any(not segment for segment in segments)
+            or any(character.isspace() for character in self.callee)
+            or any(token in self.callee for token in ("?", "(", ")", "[", "]", "<", ">"))
+        ):
+            raise ValueError("callee must contain only normalized written name segments")
+        if self.kind is JavaScriptCallKind.IDENTIFIER and len(segments) != 1:
+            raise ValueError("identifier call requires an undotted callee")
+        if self.kind is JavaScriptCallKind.MEMBER and len(segments) < 2:
+            raise ValueError("member call requires a dotted callee")
+        return self
+
+    def sort_key(self) -> tuple[object, ...]:
+        return (
+            self.source_path,
+            self.span.start_line,
+            self.span.start_column if self.span.start_column is not None else -1,
+            self.span.end_line,
+            self.span.end_column if self.span.end_column is not None else -1,
+            self.enclosing_id,
+            self.kind.value,
+            self.callee,
+            self.is_optional,
+        )
+
+
 class UnresolvedMarkdownFact(BaseModel):
     """One direct Markdown syntax fact without a resolved graph target."""
 
@@ -449,6 +499,7 @@ class ExtractionResult(BaseModel):
     commonjs_requires: tuple[UnresolvedCommonJsRequireFact, ...] = ()
     commonjs_exports: tuple[UnresolvedCommonJsExportFact, ...] = ()
     esm_reexports: tuple[UnresolvedEsmReExportFact, ...] = ()
+    javascript_calls: tuple[UnresolvedJavaScriptCallFact, ...] = ()
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
     metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     diagnostics: tuple[str, ...] = ()

@@ -17,6 +17,7 @@ from repolens.extractors.base import (
     UnresolvedEsmImportFact,
     UnresolvedEsmReExportFact,
     UnresolvedImportFact,
+    UnresolvedJavaScriptCallFact,
     UnresolvedMarkdownFact,
 )
 from repolens.extractors.javascript_typescript import JavaScriptTypeScriptExtractor
@@ -68,6 +69,9 @@ class RepositoryIndexResult(BaseModel):
     esm_reexports: tuple[UnresolvedEsmReExportFact, ...] = Field(
         default=(), exclude_if=lambda value: not value
     )
+    javascript_calls: tuple[UnresolvedJavaScriptCallFact, ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
     markdown_facts: tuple[UnresolvedMarkdownFact, ...] = ()
     metadata_facts: tuple[ProjectMetadataFact, ...] = ()
     scanner_diagnostics: tuple[ScanDiagnostic, ...] = ()
@@ -89,6 +93,11 @@ class RepositoryIndexResult(BaseModel):
             self,
             "esm_reexports",
             tuple(sorted(self.esm_reexports, key=UnresolvedEsmReExportFact.sort_key)),
+        )
+        object.__setattr__(
+            self,
+            "javascript_calls",
+            tuple(sorted(self.javascript_calls, key=UnresolvedJavaScriptCallFact.sort_key)),
         )
         object.__setattr__(
             self,
@@ -134,6 +143,27 @@ class RepositoryIndexResult(BaseModel):
             "extractor_diagnostics",
             tuple(sorted(self.extractor_diagnostics)),
         )
+        owners = {node.id: node for node in self.graph.nodes}
+        allowed_owner_kinds = {
+            NodeKind.MODULE,
+            NodeKind.FUNCTION,
+            NodeKind.METHOD,
+            NodeKind.REACT_COMPONENT,
+        }
+        for fact in self.javascript_calls:
+            owner = owners.get(fact.enclosing_id)
+            if owner is None:
+                raise ValueError(
+                    f"JavaScript call owner {fact.enclosing_id!r} does not exist in graph"
+                )
+            if owner.kind not in allowed_owner_kinds:
+                raise ValueError(
+                    f"JavaScript call owner {fact.enclosing_id!r} is not an allowed owner kind"
+                )
+            if owner.source_path != fact.source_path:
+                raise ValueError(
+                    f"JavaScript call owner {fact.enclosing_id!r} must use the same source path"
+                )
         return self
 
 
@@ -230,6 +260,7 @@ def index_repository(
     commonjs_requires: list[UnresolvedCommonJsRequireFact] = []
     commonjs_exports: list[UnresolvedCommonJsExportFact] = []
     esm_reexports: list[UnresolvedEsmReExportFact] = []
+    javascript_calls: list[UnresolvedJavaScriptCallFact] = []
     markdown_facts: list[UnresolvedMarkdownFact] = []
     metadata_facts: list[ProjectMetadataFact] = []
     extractor_diagnostics: list[str] = []
@@ -290,6 +321,7 @@ def index_repository(
         commonjs_requires.extend(extraction.commonjs_requires)
         commonjs_exports.extend(extraction.commonjs_exports)
         esm_reexports.extend(extraction.esm_reexports)
+        javascript_calls.extend(extraction.javascript_calls)
         markdown_facts.extend(extraction.markdown_facts)
         metadata_facts.extend(extraction.metadata_facts)
         extractor_diagnostics.extend(extraction.diagnostics)
@@ -308,6 +340,7 @@ def index_repository(
         commonjs_requires=tuple(commonjs_requires),
         commonjs_exports=tuple(commonjs_exports),
         esm_reexports=tuple(esm_reexports),
+        javascript_calls=tuple(javascript_calls),
         markdown_facts=tuple(markdown_facts),
         metadata_facts=tuple(metadata_facts),
         scanner_diagnostics=scan_result.diagnostics,

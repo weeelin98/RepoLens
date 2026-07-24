@@ -16,7 +16,7 @@ from repolens.extractors import (
     JavaScriptTypeScriptExtractor,
 )
 from repolens.graph.serialization import canonical_index_json, parse_index_json
-from repolens.indexer import index_repository
+from repolens.indexer import RepositoryIndexResult, index_repository
 from repolens.models import EdgeKind, GraphNode, NodeKind, SourceSpan
 
 PROJECT_ROOT = Path(__file__).parents[1]
@@ -29,6 +29,15 @@ def _node_for_name(nodes: tuple[GraphNode, ...], qualified_name: str) -> GraphNo
 def _component_names(source: str, path: str = "components.tsx") -> set[str]:
     result = JavaScriptTypeScriptExtractor().extract(Path(path), source)
     return {node.label for node in result.nodes if node.kind is NodeKind.REACT_COMPONENT}
+
+
+def _m22a_compatibility_projection(
+    result: RepositoryIndexResult,
+) -> RepositoryIndexResult:
+    payload = result.model_dump(mode="python")
+    calls = payload.pop("javascript_calls")
+    assert calls
+    return RepositoryIndexResult.model_validate(payload)
 
 
 def test_locked_javascript_and_tsx_parser_capsules_and_abis() -> None:
@@ -363,6 +372,16 @@ def test_fullstack_task_panel_is_component_without_later_relationships() -> None
         edge.relation not in {EdgeKind.IMPORTS, EdgeKind.EXPORTS, EdgeKind.CALLS, EdgeKind.INHERITS}
         for edge in result.graph.edges
     )
+    calls = {(fact.source_path, fact.callee): fact for fact in result.javascript_calls}
+    assert calls[("frontend/src/TaskPanel.tsx", "fetchTask")].enclosing_id == panel.id
+    assert calls[("frontend/src/TaskPanel.tsx", "fetchTask")].span == SourceSpan(
+        start_line=6,
+        end_line=6,
+        start_column=25,
+        end_column=42,
+    )
+    assert calls[("frontend/src/api.ts", "fetch")].is_optional is False
+    assert calls[("frontend/src/api.ts", "response.json")].kind.value == "member"
     rendered = canonical_index_json(result)
     assert str(repository.resolve()) not in rendered
     assert "timestamp" not in rendered.casefold()
@@ -373,8 +392,10 @@ def test_m22a_typescript_frontend_partial_gold_matches_semantics_and_repeated_ge
     repository = fixture / "repo"
     expected = (fixture / "m2-2a-graph.json").read_bytes()
 
-    first = canonical_index_json(index_repository(repository, RuntimeConfig())).encode()
-    second = canonical_index_json(index_repository(repository, RuntimeConfig())).encode()
+    first_result = index_repository(repository, RuntimeConfig())
+    second_result = index_repository(repository, RuntimeConfig())
+    first = canonical_index_json(_m22a_compatibility_projection(first_result)).encode()
+    second = canonical_index_json(_m22a_compatibility_projection(second_result)).encode()
     parsed = parse_index_json(expected.decode())
     profile_card = _node_for_name(
         parsed.graph.nodes,
@@ -382,6 +403,13 @@ def test_m22a_typescript_frontend_partial_gold_matches_semantics_and_repeated_ge
     )
 
     assert first == second == expected
+    assert [fact.callee for fact in first_result.javascript_calls] == [
+        "useState",
+        "useEffect",
+        "loadProfile",
+        "fetch",
+        "response.json",
+    ]
     assert expected.endswith(b"\n") and b"\r" not in expected
     assert profile_card.kind is NodeKind.REACT_COMPONENT
     assert profile_card.language == "tsx"
